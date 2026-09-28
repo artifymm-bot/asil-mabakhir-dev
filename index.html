@@ -1333,9 +1333,9 @@ async function exportPDF(){
 }
 
 /*
-  تصدير الصورة أصبح SVG حقيقيًا يحتوي على الفاتورة نفسها.
+  تصدير الصورة أصبح JPG حقيقيًا عالي الجودة يحتوي على الفاتورة نفسها.
   لا يعتمد على html2canvas أو jsPDF، وبالتالي لا يمكن أن ينتج Canvas أبيض.
-  SVG ملف صورة ويمكن فتحه وإرساله، كما يمكن طباعته/تحويله إلى PNG من الهاتف.
+  يتم تحويل الفاتورة إلى JPG ويمكن مشاركتها مباشرة عبر قائمة المشاركة على الهاتف.
 */
 function exportInvoiceImage(onReady){
   if(items.filter(i => i.code).length === 0){
@@ -1353,7 +1353,7 @@ function exportInvoiceImage(onReady){
     const height = Math.max(1123, Math.ceil(source.scrollHeight || rect.height || 1123));
 
     // نبني SVG من DOM الحقيقي، وليس من HTML محوّل إلى نص.
-    // ثم نحوّله إلى PNG عبر Canvas.
+    // ثم نحوّله إلى JPG عبر Canvas.
     const serializer = new XMLSerializer();
     const sourceClone = source.cloneNode(true);
 
@@ -1416,7 +1416,7 @@ function exportInvoiceImage(onReady){
 
         canvas.toBlob(function(blob){
           URL.revokeObjectURL(svgUrl);
-          if(!blob) throw new Error("تعذر إنشاء PNG");
+          if(!blob) throw new Error("تعذر إنشاء JPG");
           if(typeof onReady === "function"){
             onReady(blob);
             return;
@@ -1425,15 +1425,15 @@ function exportInvoiceImage(onReady){
           const url = URL.createObjectURL(blob);
           const link = document.createElement("a");
           link.href = url;
-          link.download = getInvoiceFileBaseName() + ".png";
+          link.download = getInvoiceFileBaseName() + ".jpg";
           document.body.appendChild(link);
           link.click();
           link.remove();
           setTimeout(() => URL.revokeObjectURL(url), 10000);
-        }, "image/png");
+        }, "image/jpeg", 0.92);
       }catch(err){
         URL.revokeObjectURL(svgUrl);
-        console.error("PNG render error:", err);
+        console.error("JPG render error:", err);
         alert("تعذر تحويل الفاتورة إلى صورة. حاول مرة أخرى.");
       }
     };
@@ -1465,7 +1465,7 @@ async function shareWhatsApp(){
       });
     });
 
-    const file = new File([blob], getInvoiceFileBaseName() + ".png", {type:"image/png"});
+    const file = new File([blob], getInvoiceFileBaseName() + ".jpg", {type:"image/jpeg"});
     if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
       await navigator.share({
         files:[file],
