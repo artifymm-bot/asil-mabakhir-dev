@@ -1345,8 +1345,7 @@ function exportInvoiceImage(onReady){
 
   // بديل أكثر ثباتًا: نبني صورة الفاتورة بالكامل كـ SVG مباشر
   // بدون foreignObject أو html2canvas، ثم نحول الـ SVG إلى JPG.
-  try{
-    renderInvoice();
+  renderInvoice();
 
     const rows = items.filter(i => i.code);
     const client = document.getElementById("clientName").value.trim() || "—";
@@ -1486,6 +1485,8 @@ function exportInvoiceImage(onReady){
       if(typeof onReady==="function") onReady(null);
     };
     img.src=svgDataUrl;
+  }
+}
 async function shareWhatsApp(){
   if(items.filter(i => i.code).length === 0){
     alert("أضف صنف واحد على الأقل قبل الإرسال");
