@@ -1435,44 +1435,57 @@ function exportInvoiceImage(onReady){
     svg += textEl(W/2,H-28,"برمجة وتطوير محمد حسني احمد",18,600,"middle","#79706e");
     svg += '</svg>';
 
-    const blob = new Blob([svg], {type:"image/svg+xml;charset=utf-8"});
-    const url = URL.createObjectURL(blob);
+    // نستخدم Data URI بدل Blob URL لأن بعض متصفحات الموبايل/WebView لا تتعامل
+    // بثبات مع تحميل SVG من blob: داخل عنصر Image.
+    const svgDataUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
     const img = new Image();
 
     img.onload = function(){
       try{
-        const scale=2;
+        // على الهاتف نستخدم دقة أخف لتقليل استهلاك الذاكرة، وعلى الكمبيوتر دقة أعلى.
+        const scale = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? 1.25 : 2;
         const canvas=document.createElement("canvas");
-        canvas.width=W*scale;
-        canvas.height=H*scale;
-        const ctx=canvas.getContext("2d");
+        canvas.width=Math.round(W*scale);
+        canvas.height=Math.round(H*scale);
+        const ctx=canvas.getContext("2d", {alpha:false});
         if(!ctx) throw new Error("Canvas غير متاح");
         ctx.fillStyle="#ffffff";
         ctx.fillRect(0,0,canvas.width,canvas.height);
         ctx.drawImage(img,0,0,canvas.width,canvas.height);
 
-        canvas.toBlob(function(jpg){
-          URL.revokeObjectURL(url);
-          if(!jpg) throw new Error("تعذر إنشاء JPG");
-          if(typeof onReady==="function") onReady(jpg);
-        },"image/jpeg",0.94);
+        const finish = (jpg) => {
+          if(jpg){
+            if(typeof onReady==="function") onReady(jpg);
+            return;
+          }
+          // fallback إضافي للمتصفحات التي لا تنفذ toBlob بشكل سليم.
+          try{
+            const dataUrl = canvas.toDataURL("image/jpeg",0.92);
+            const binary = atob(dataUrl.split(",")[1]);
+            const bytes = new Uint8Array(binary.length);
+            for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+            if(typeof onReady==="function") onReady(new Blob([bytes],{type:"image/jpeg"}));
+          }catch(fallbackErr){
+            console.error("JPG fallback error:",fallbackErr);
+            if(typeof onReady==="function") onReady(null);
+          }
+        };
+
+        if(typeof canvas.toBlob === "function"){
+          canvas.toBlob(finish,"image/jpeg",0.92);
+        }else{
+          finish(null);
+        }
       }catch(err){
-        URL.revokeObjectURL(url);
-        console.error("Direct SVG JPG error:",err);
+        console.error("Mobile SVG JPG render error:",err);
         if(typeof onReady==="function") onReady(null);
       }
     };
-    img.onerror=function(){
-      URL.revokeObjectURL(url);
-      console.error("Direct SVG load error");
+    img.onerror=function(err){
+      console.error("SVG image load error:",err);
       if(typeof onReady==="function") onReady(null);
     };
-    img.src=url;
-  }catch(err){
-    console.error("exportInvoiceImage error:",err);
-    if(typeof onReady==="function") onReady(null);
-  }
-}
+    img.src=svgDataUrl;
 async function shareWhatsApp(){
   if(items.filter(i => i.code).length === 0){
     alert("أضف صنف واحد على الأقل قبل الإرسال");
