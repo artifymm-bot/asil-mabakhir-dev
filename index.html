@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>الأصيل — نظام استخراج فاتورة على السريع</title>
+<title>تجربة — بعدل الأصيل</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -421,8 +421,8 @@
 <div class="wrap">
 
   <header class="app-head">
-    <h1>الأصيل — نظام استخراج فاتورة على السريع</h1>
-    <p class="subtitle">قائمة الأصناف والأسعار — تعديل الكود والكمية والسعر ثم تصدير PDF أو صورة ومشاركة الفاتورة</p>
+    <h1>تجربة — بعدل الأصيل</h1>
+    <p class="subtitle">نسخة تجريبية لتطوير وتعديل نظام الأصيل — لاستخدام واختبار التعديلات قبل اعتمادها</p>
   </header>
 
   <section class="card">
@@ -1466,32 +1466,55 @@ async function shareWhatsApp(){
     });
 
     const file = new File([blob], getInvoiceFileBaseName() + ".jpg", {type:"image/jpeg"});
-    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-      await navigator.share({
-        files:[file],
-        title:"فاتورة الأصيل - " + invoiceNumber,
-        text:"فاتورة العميل " + (document.getElementById("clientName").value.trim() || "—")
-      });
-      return;
-    }
-
-    const lines = items.filter(i => i.code).map((i, idx) =>
-      (idx+1) + "- " + i.name + " | كود: " + i.code + " | كمية: " + i.qty
-    );
-    const message = [
+    const whatsappText = [
       "الأصيل لاستيراد الفوحات والمباخر",
       "فاتورة رقم: " + invoiceNumber,
       "العميل: " + (document.getElementById("clientName").value.trim() || "—"),
       "",
-      ...lines,
+      ...items.filter(i => i.code).map((i, idx) =>
+        (idx+1) + "- " + i.name + " | كود: " + i.code + " | كمية: " + i.qty
+      ),
       "",
       "الإجمالي الكلي: " + formatMoney(calculateTotal())
     ].join("\n");
-    window.open("https://wa.me/?text=" + encodeURIComponent(message), "_blank");
+
+    // على الهواتف التي تدعم مشاركة الملفات: افتح قائمة المشاركة وسيظهر واتساب ضمن التطبيقات المتاحة.
+    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      try{
+        await navigator.share({
+          files:[file],
+          title:"فاتورة الأصيل - " + invoiceNumber,
+          text:"فاتورة العميل " + (document.getElementById("clientName").value.trim() || "—")
+        });
+        return;
+      }catch(err){
+        // إذا رفض المتصفح مشاركة الملف أو أغلق المستخدم نافذة المشاركة، نستخدم المسار الاحتياطي.
+        if(err && err.name === "AbortError") return;
+        console.warn("File share unavailable, using WhatsApp fallback:", err);
+      }
+    }
+
+    // المسار الاحتياطي: تنزيل JPG تلقائياً ثم فتح واتساب بالنص.
+    // المتصفح لا يسمح لصفحة ويب بإرفاق ملف تلقائياً داخل محادثة WhatsApp.
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = getInvoiceFileBaseName() + ".jpg";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+    const whatsappUrl = "https://wa.me/?text=" + encodeURIComponent(whatsappText);
+    window.open(whatsappUrl, "_blank", "noopener");
+
+    setTimeout(() => {
+      alert("تم تجهيز صورة الفاتورة JPG وفتح واتساب. إذا لم تُرفق الصورة تلقائياً، ستجدها في التنزيلات وأرفقها من واتساب.");
+    }, 500);
   }catch(err){
     console.error("shareWhatsApp error:", err);
     if(err && err.name === "AbortError") return;
-    alert("تعذر مشاركة الفاتورة. حاول مرة أخرى.");
+    alert("تعذر تجهيز صورة الفاتورة. حاول مرة أخرى.");
   }
 }
 
