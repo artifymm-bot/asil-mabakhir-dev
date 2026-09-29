@@ -386,6 +386,25 @@
   .product-modal-head h3{margin:0;color:var(--navy);font-size:18px}
   .modal-close{background:var(--danger-bg);color:var(--danger);padding:7px 11px}
   .product-picker-select{width:100%;min-height:230px;font-family:inherit;font-size:14px;border:1px solid var(--border);border-radius:10px;padding:6px;background:#fff}
+
+  .product-picker-select{display:none}
+  .product-picker-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;max-height:48vh;overflow:auto;padding:2px}
+  .product-choice{position:relative;border:1px solid var(--border);border-radius:12px;background:#fff;padding:8px;text-align:right;cursor:pointer;transition:.15s;min-width:0}
+  .product-choice:hover{border-color:var(--orange);transform:translateY(-1px)}
+  .product-choice.selected{border:2px solid var(--orange);background:#fff8ed;box-shadow:0 3px 12px rgba(201,130,47,.14)}
+  .product-choice .pc-img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:9px;background:#f3efe4;display:block}
+  .product-choice .pc-noimg{width:100%;aspect-ratio:1/1;border-radius:9px;background:#f3efe4;display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-size:30px}
+  .product-choice .pc-code{display:inline-block;margin-top:7px;background:var(--navy);color:#fff;border-radius:6px;padding:2px 7px;font-size:11px;font-weight:800}
+  .product-choice .pc-name{display:block;font-size:12.5px;font-weight:800;color:var(--ink);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .product-choice .pc-price{display:block;font-size:11.5px;color:var(--orange);font-weight:800;margin-top:2px}
+  .product-choice .pc-check{position:absolute;top:8px;left:8px;width:24px;height:24px;border-radius:50%;background:var(--orange);color:#fff;display:none;align-items:center;justify-content:center;font-weight:900}
+  .product-choice.selected .pc-check{display:flex}
+  .manage-image-box{display:flex;align-items:center;gap:12px;padding:10px;border:1px dashed var(--border);border-radius:10px;background:#faf8f3}
+  .manage-image-preview{width:82px;height:82px;border-radius:10px;object-fit:cover;background:#eee;display:none}
+  .manage-image-placeholder{width:82px;height:82px;border-radius:10px;background:#f3efe4;display:flex;align-items:center;justify-content:center;font-size:30px;color:var(--muted-2)}
+  .item-product-image{width:58px;height:58px;border-radius:9px;object-fit:cover;background:#f3efe4;display:block}
+  .item-product-image-empty{width:58px;height:58px;border-radius:9px;background:#f3efe4;display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-size:23px}
+  @media (max-width:640px){.product-picker-grid{grid-template-columns:repeat(2,minmax(0,1fr));max-height:52vh}}
   .product-picker-help{margin:7px 0 12px;color:var(--muted-2);font-size:12.5px;font-weight:600}
   .product-manage-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .product-manage-grid .field-full{grid-column:1/-1}
@@ -499,6 +518,7 @@
         <thead>
           <tr>
             <th>م</th>
+            <th>الصورة</th>
             <th>كود الصنف</th>
             <th>الاسم</th>
             <th>الكمية</th>
@@ -508,7 +528,7 @@
           </tr>
         </thead>
         <tbody id="pInvoiceRows">
-          <tr><td class="pv-empty" colspan="7">لا توجد أصناف مضافة بعد</td></tr>
+          <tr><td class="pv-empty" colspan="8">لا توجد أصناف مضافة بعد</td></tr>
         </tbody>
       </table>
 
@@ -546,9 +566,10 @@
       </div>
 
       <div class="field">
-        <label>اختيار صنف أو أكثر</label>
+        <label>اختيار المنتجات — اضغط على صورة المنتج لإضافته</label>
         <select id="multiProductPicker" class="product-picker-select" multiple></select>
-        <div class="product-picker-help">استخدم Ctrl / Command على الكمبيوتر، أو اضغط على أكثر من صنف في الهاتف لتحديد عدة أصناف، ثم اضغط «إضافة المحدد».</div>
+        <div id="productPickerGrid" class="product-picker-grid"></div>
+        <div class="product-picker-help">حدد منتجًا أو أكثر بالضغط على الصور، ثم اضغط «إضافة المحدد». السعر والكود ينتقلان تلقائيًا ويمكن تعديلهما بعد الإضافة.</div>
       </div>
 
       <div class="product-picker-actions">
@@ -579,6 +600,18 @@
           <div class="field">
             <label>التصنيف</label>
             <input type="text" id="manageProductCategory" placeholder="مثال: USB">
+          </div>
+          <div class="field field-full">
+            <label>صورة المنتج</label>
+            <div class="manage-image-box">
+              <div id="manageImagePlaceholder" class="manage-image-placeholder">📷</div>
+              <img id="manageImagePreview" class="manage-image-preview" alt="معاينة صورة المنتج">
+              <div style="flex:1">
+                <input type="file" id="manageProductImage" accept="image/*" onchange="handleProductImageUpload(event)">
+                <div class="product-picker-help" style="margin:5px 0 0">ارفع صورة المنتج من الموبايل، وسيتم ضغطها وحفظها داخل بيانات الصنف على هذا الجهاز.</div>
+                <button class="btn-secondary" type="button" onclick="removeManagedImage()" style="margin-top:7px">حذف الصورة</button>
+              </div>
+            </div>
           </div>
         </div>
         <div class="product-picker-actions">
@@ -843,7 +876,7 @@ let CUSTOM_PRODUCTS = [];
 function getProducts(){
   const base = PRODUCTS.map(p => {
     const override = PRODUCT_OVERRIDES[p.code] || {};
-    return {...p, ...override};
+    return {...p, ...override, image: override.image || p.image || ""};
   });
   return base.concat(CUSTOM_PRODUCTS.map(p => ({...p})));
 }
@@ -906,116 +939,134 @@ function productOptionsHTML(selectedCode="", multiple=false){
   }).join("");
 }
 
+let selectedProductCodes = new Set();
+let managedProductImage = "";
+
+function renderProductPickerGrid(){
+  const grid = document.getElementById("productPickerGrid");
+  if(!grid) return;
+  const products = getProducts();
+  grid.innerHTML = products.map(p => {
+    const selected = selectedProductCodes.has(p.code);
+    const image = p.image ? '<img class="pc-img" src="' + escapeHtml(p.image) + '" alt="">' : '<div class="pc-noimg">📦</div>';
+    return '<button type="button" class="product-choice ' + (selected ? 'selected' : '') + '" onclick="toggleProductChoice(\\'' + escapeHtml(p.code).replace(/'/g,"&#039;") + '\\')" aria-pressed="' + selected + '">' +
+      '<span class="pc-check">✓</span>' + image +
+      '<span class="pc-code">' + escapeHtml(p.code) + '</span>' +
+      '<span class="pc-name">' + escapeHtml(p.name) + '</span>' +
+      '<span class="pc-price">' + escapeHtml(formatMoney(p.price)) + '</span></button>';
+  }).join("");
+}
+function toggleProductChoice(code){
+  if(selectedProductCodes.has(code)) selectedProductCodes.delete(code); else selectedProductCodes.add(code);
+  const picker = document.getElementById("multiProductPicker");
+  if(picker) Array.from(picker.options).forEach(o => o.selected = selectedProductCodes.has(o.value));
+  renderProductPickerGrid();
+}
+function handleProductImageUpload(event){
+  const file = event.target.files && event.target.files[0];
+  if(!file) return;
+  if(!file.type.startsWith("image/")){ alert("اختر ملف صورة فقط."); return; }
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const img = new Image();
+    img.onload = function(){
+      const max = 700;
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(img.width * scale));
+      canvas.height = Math.max(1, Math.round(img.height * scale));
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      managedProductImage = canvas.toDataURL("image/jpeg",0.82);
+      showManagedImage(managedProductImage);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function showManagedImage(src){
+  const img = document.getElementById("manageImagePreview");
+  const ph = document.getElementById("manageImagePlaceholder");
+  if(!img || !ph) return;
+  if(src){ img.src = src; img.style.display="block"; ph.style.display="none"; }
+  else { img.removeAttribute("src"); img.style.display="none"; ph.style.display="flex"; }
+}
+function removeManagedImage(){
+  managedProductImage = "";
+  const input = document.getElementById("manageProductImage");
+  if(input) input.value = "";
+  showManagedImage("");
+}
 function populateProductPicker(){
   const picker = document.getElementById("multiProductPicker");
-  if(!picker) return;
-  picker.innerHTML = productOptionsHTML("", true);
+  if(picker) picker.innerHTML = productOptionsHTML("", true);
+  renderProductPickerGrid();
 }
-
 function openProductPicker(){
+  selectedProductCodes = new Set();
   populateProductPicker();
   document.getElementById("productManageArea").style.display = "none";
   document.getElementById("productPickerModal").classList.add("open");
 }
-
-function closeProductPicker(){
-  document.getElementById("productPickerModal").classList.remove("open");
-}
-
+function closeProductPicker(){ document.getElementById("productPickerModal").classList.remove("open"); }
 function addSelectedProducts(){
   const picker = document.getElementById("multiProductPicker");
-  const codes = Array.from(picker.selectedOptions).map(o => o.value).filter(Boolean);
-  if(codes.length === 0){
-    alert("اختر صنفًا واحدًا على الأقل.");
-    return;
-  }
-
+  const codes = selectedProductCodes.size ? Array.from(selectedProductCodes) : Array.from(picker?.selectedOptions || []).map(o => o.value).filter(Boolean);
+  if(codes.length === 0){ alert("اختر صنفًا واحدًا على الأقل من الصور."); return; }
   const products = getProducts();
   codes.forEach(code => {
     const product = products.find(p => p.code === code);
     if(!product) return;
-    items.push({
-      id: nextId++,
-      code: product.code,
-      name: product.name,
-      price: product.price,
-      qty: 1,
-      notes: ""
-    });
+    items.push({id:nextId++,code:product.code,name:product.name,price:product.price,qty:1,notes:"",image:product.image||""});
   });
-
-  renderItems();
-  renderInvoice();
-  closeProductPicker();
+  renderItems(); renderInvoice(); closeProductPicker();
 }
-
 function prepareNewProduct(){
   document.getElementById("productManageArea").style.display = "block";
   document.getElementById("productManageTitle").textContent = "إضافة صنف جديد";
-  const fields = ["manageProductCode","manageProductName","manageProductPrice","manageProductCategory"];
-  fields.forEach(id => document.getElementById(id).value = "");
+  ["manageProductCode","manageProductName","manageProductPrice","manageProductCategory"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("manageProductCode").disabled = false;
+  managedProductImage = "";
+  const input=document.getElementById("manageProductImage"); if(input) input.value="";
+  showManagedImage("");
   document.getElementById("manageProductCode").focus();
 }
-
 function prepareEditProduct(){
-  const picker = document.getElementById("multiProductPicker");
-  const code = picker && picker.selectedOptions.length ? picker.selectedOptions[0].value : "";
-  if(!code){
-    alert("حدد صنفًا واحدًا من القائمة أولًا للتعديل.");
-    return;
-  }
-
-  const product = getProducts().find(p => p.code === code);
-  if(!product) return;
-
-  document.getElementById("productManageArea").style.display = "block";
-  document.getElementById("productManageTitle").textContent = "تعديل الصنف";
-  document.getElementById("manageProductCode").value = product.code;
-  document.getElementById("manageProductCode").disabled = true;
-  document.getElementById("manageProductName").value = product.name;
-  document.getElementById("manageProductPrice").value = product.price;
-  document.getElementById("manageProductCategory").value = product.category;
+  const picker=document.getElementById("multiProductPicker");
+  const code=selectedProductCodes.size?Array.from(selectedProductCodes)[0]:(picker&&picker.selectedOptions.length?picker.selectedOptions[0].value:"");
+  if(!code){alert("حدد صنفًا واحدًا من الصور أولًا للتعديل.");return;}
+  const product=getProducts().find(p=>p.code===code); if(!product)return;
+  document.getElementById("productManageArea").style.display="block";
+  document.getElementById("productManageTitle").textContent="تعديل الصنف";
+  document.getElementById("manageProductCode").value=product.code;
+  document.getElementById("manageProductCode").disabled=true;
+  document.getElementById("manageProductName").value=product.name;
+  document.getElementById("manageProductPrice").value=product.price;
+  document.getElementById("manageProductCategory").value=product.category;
+  managedProductImage=product.image||"";
+  const input=document.getElementById("manageProductImage"); if(input) input.value="";
+  showManagedImage(managedProductImage);
 }
-
 function saveManagedProduct(){
-  const code = document.getElementById("manageProductCode").value.trim();
-  const name = document.getElementById("manageProductName").value.trim();
-  const price = Math.max(0, parseFloat(document.getElementById("manageProductPrice").value) || 0);
-  const category = document.getElementById("manageProductCategory").value.trim() || "أصناف أخرى";
-
-  if(!code || !name){
-    alert("اكتب كود الصنف واسم الصنف.");
-    return;
-  }
-
-  const customIndex = CUSTOM_PRODUCTS.findIndex(p => p.code === code);
-  const defaultProduct = PRODUCTS.find(p => p.code === code);
-
-  if(customIndex >= 0){
-    CUSTOM_PRODUCTS[customIndex] = {code, name, price, category};
+  const code=document.getElementById("manageProductCode").value.trim();
+  const name=document.getElementById("manageProductName").value.trim();
+  const price=Math.max(0,parseFloat(document.getElementById("manageProductPrice").value)||0);
+  const category=document.getElementById("manageProductCategory").value.trim()||"أصناف أخرى";
+  if(!code||!name){alert("اكتب كود الصنف واسم الصنف.");return;}
+  const customIndex=CUSTOM_PRODUCTS.findIndex(p=>p.code===code);
+  const defaultProduct=PRODUCTS.find(p=>p.code===code);
+  if(customIndex>=0){
+    CUSTOM_PRODUCTS[customIndex]={code,name,price,category,image:managedProductImage||""};
   }else if(defaultProduct){
-    PRODUCT_OVERRIDES[code] = {name, price, category};
+    PRODUCT_OVERRIDES[code]={...(PRODUCT_OVERRIDES[code]||{}),name,price,category,image:managedProductImage||""};
   }else{
-    if(getProducts().some(p => p.code === code)){
-      alert("كود الصنف موجود بالفعل.");
-      return;
-    }
-    CUSTOM_PRODUCTS.push({code, name, price, category});
+    if(getProducts().some(p=>p.code===code)){alert("كود الصنف موجود بالفعل.");return;}
+    CUSTOM_PRODUCTS.push({code,name,price,category,image:managedProductImage||""});
   }
-
-  saveProductCatalog();
-  populateProductPicker();
-  renderItems();
-  renderInvoice();
-  cancelProductManagement();
-  alert("تم حفظ بيانات الصنف.");
+  saveProductCatalog(); populateProductPicker(); renderItems(); renderInvoice(); cancelProductManagement();
+  alert("تم حفظ بيانات الصنف والصورة بنجاح.");
 }
-
-function cancelProductManagement(){
-  document.getElementById("productManageArea").style.display = "none";
-}
-
+function cancelProductManagement(){document.getElementById("productManageArea").style.display="none";managedProductImage="";}
 /* =========================================================
    إدارة الأصناف
    ========================================================= */
@@ -1036,6 +1087,7 @@ function selectProduct(id, code){
   item.code = product.code;
   item.name = product.name;
   item.price = product.price;
+  item.image = product.image || "";
   item.qty = 1;
   renderItems();
   renderInvoice();
@@ -1159,7 +1211,10 @@ function itemCardHTML(item){
        ondrop="dropItem(event, ${item.id})"
        ondragend="endItemDrag(event)">
     <div class="item-card-head">
-      <span class="item-code-badge">${item.code || "—"}</span>
+      <div style="display:flex;align-items:center;gap:9px;">
+        ${item.image ? '<img class="item-product-image" src="' + escapeHtml(item.image) + '" alt="">' : '<div class="item-product-image-empty">📦</div>'}
+        <span class="item-code-badge">${item.code || "—"}</span>
+      </div>
       <div class="item-order-actions">
         <button class="move-btn" type="button" onclick="moveItem(${item.id}, -1)" title="تحريك لأعلى">↑</button>
         <button class="move-btn" type="button" onclick="moveItem(${item.id}, 1)" title="تحريك لأسفل">↓</button>
@@ -1218,6 +1273,7 @@ function renderInvoice(){
   document.getElementById("pInvNo").textContent = invoiceNumber;
   document.getElementById("pDate").textContent = formatDate();
 
+  items.forEach(i => { if(i.code && !i.image){ const p=getProducts().find(p=>p.code===i.code); if(p) i.image=p.image||""; } });
   const rows = items.filter(i => i.code);
   const rowsWrap = document.getElementById("pInvoiceRows");
   if(rows.length === 0){
@@ -1226,6 +1282,7 @@ function renderInvoice(){
     rowsWrap.innerHTML = rows.map((i, idx) => `
       <tr>
         <td>${idx + 1}</td>
+        <td>${i.image ? '<img src="' + escapeHtml(i.image) + '" style="width:42px;height:42px;object-fit:cover;border-radius:6px;background:#f3efe4" alt="">' : '—'}</td>
         <td>${i.code}</td>
         <td class="cell-name">${i.name}</td>
         <td>${i.qty}</td>
