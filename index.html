@@ -110,7 +110,7 @@
   }
   .field textarea{ resize: vertical; min-height: 64px; font-family:inherit; }
   .notes-field{ grid-column: 1 / -1; }
-  .item-notes-field textarea{
+  .item-notes-field{display:block!important;}\n  .item-notes-field textarea{
     font-family:inherit;
     font-size: 13.5px;
     padding: 8px 10px;
@@ -509,7 +509,7 @@
     <h2>معاينة الفاتورة</h2>
     <div id="invoicePreview">
       <div class="inv-company">الأصيل للاستيراد الفوحات والمباخر</div>
-      <div class="inv-title">فاتورة</div>
+      <div class="inv-title">فاتورة إلكترونية</div>
       <div class="inv-meta">
         <div><b>العميل:</b> <span id="pClient">—</span></div>
         <div><b>رقم الفاتورة:</b> <span id="pInvNo">—</span></div>
@@ -739,7 +739,7 @@ function formatMoney(n){
 }
 
 function generateInvoiceNumber(){
-  invoiceNumber = String(Date.now()).slice(-6).padStart(6, "0");
+  invoiceNumber = "0" + String(Math.floor(Math.random() * 10000)).padStart(4, "0");
 }
 
 function getInvoiceFileBaseName(){
@@ -1278,7 +1278,7 @@ function renderInvoice(){
   const rows = items.filter(i => i.code);
   const rowsWrap = document.getElementById("pInvoiceRows");
   if(rows.length === 0){
-    rowsWrap.innerHTML = '<tr><td class="pv-empty" colspan="7">لا توجد أصناف مضافة بعد</td></tr>';
+    rowsWrap.innerHTML = '<tr><td class="pv-empty" colspan="8">لا توجد أصناف مضافة بعد</td></tr>';
   } else {
     rowsWrap.innerHTML = rows.map((i, idx) => `
       <tr>
