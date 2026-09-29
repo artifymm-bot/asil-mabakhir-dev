@@ -949,7 +949,7 @@ function renderProductPickerGrid(){
   grid.innerHTML = products.map(p => {
     const selected = selectedProductCodes.has(p.code);
     const image = p.image ? '<img class="pc-img" src="' + escapeHtml(p.image) + '" alt="">' : '<div class="pc-noimg">📦</div>';
-    return '<button type="button" class="product-choice ' + (selected ? 'selected' : '') + '" onclick="toggleProductChoice(\\'' + escapeHtml(p.code).replace(/'/g,"&#039;") + '\\')" aria-pressed="' + selected + '">' +
+    return '<button type="button" class="product-choice ' + (selected ? 'selected' : '') + '" onclick="toggleProductChoice(\'' + escapeHtml(p.code).replace(/'/g,"&#039;") + '\')" aria-pressed="' + selected + '">' +
       '<span class="pc-check">✓</span>' + image +
       '<span class="pc-code">' + escapeHtml(p.code) + '</span>' +
       '<span class="pc-name">' + escapeHtml(p.name) + '</span>' +
