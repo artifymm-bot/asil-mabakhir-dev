@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>تجربة — بعدل الأصيل</title>
+<title>الأصيل — نظام استخراج فاتورة على السريع</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -294,10 +294,7 @@
     font-weight:700;
     color: var(--orange);
     margin-bottom: 18px;
-    letter-spacing: 0;
-    direction:rtl;
-    unicode-bidi:plaintext;
-    white-space:nowrap;
+    letter-spacing: .5px;
   }
   .inv-meta{
     display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;
@@ -389,6 +386,25 @@
   .product-modal-head h3{margin:0;color:var(--navy);font-size:18px}
   .modal-close{background:var(--danger-bg);color:var(--danger);padding:7px 11px}
   .product-picker-select{width:100%;min-height:230px;font-family:inherit;font-size:14px;border:1px solid var(--border);border-radius:10px;padding:6px;background:#fff}
+
+  .product-picker-select{display:none}
+  .product-picker-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;max-height:48vh;overflow:auto;padding:2px}
+  .product-choice{position:relative;border:1px solid var(--border);border-radius:12px;background:#fff;padding:8px;text-align:right;cursor:pointer;transition:.15s;min-width:0}
+  .product-choice:hover{border-color:var(--orange);transform:translateY(-1px)}
+  .product-choice.selected{border:2px solid var(--orange);background:#fff8ed;box-shadow:0 3px 12px rgba(201,130,47,.14)}
+  .product-choice .pc-img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:9px;background:#f3efe4;display:block}
+  .product-choice .pc-noimg{width:100%;aspect-ratio:1/1;border-radius:9px;background:#f3efe4;display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-size:30px}
+  .product-choice .pc-code{display:inline-block;margin-top:7px;background:var(--navy);color:#fff;border-radius:6px;padding:2px 7px;font-size:11px;font-weight:800}
+  .product-choice .pc-name{display:block;font-size:12.5px;font-weight:800;color:var(--ink);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .product-choice .pc-price{display:block;font-size:11.5px;color:var(--orange);font-weight:800;margin-top:2px}
+  .product-choice .pc-check{position:absolute;top:8px;left:8px;width:24px;height:24px;border-radius:50%;background:var(--orange);color:#fff;display:none;align-items:center;justify-content:center;font-weight:900}
+  .product-choice.selected .pc-check{display:flex}
+  .manage-image-box{display:flex;align-items:center;gap:12px;padding:10px;border:1px dashed var(--border);border-radius:10px;background:#faf8f3}
+  .manage-image-preview{width:82px;height:82px;border-radius:10px;object-fit:cover;background:#eee;display:none}
+  .manage-image-placeholder{width:82px;height:82px;border-radius:10px;background:#f3efe4;display:flex;align-items:center;justify-content:center;font-size:30px;color:var(--muted-2)}
+  .item-product-image{width:58px;height:58px;border-radius:9px;object-fit:cover;background:#f3efe4;display:block}
+  .item-product-image-empty{width:58px;height:58px;border-radius:9px;background:#f3efe4;display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-size:23px}
+  @media (max-width:640px){.product-picker-grid{grid-template-columns:repeat(2,minmax(0,1fr));max-height:52vh}}
   .product-picker-help{margin:7px 0 12px;color:var(--muted-2);font-size:12.5px;font-weight:600}
   .product-manage-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .product-manage-grid .field-full{grid-column:1/-1}
@@ -424,8 +440,8 @@
 <div class="wrap">
 
   <header class="app-head">
-    <h1>تجربة — بعدل الأصيل</h1>
-    <p class="subtitle">نسخة تجريبية لتطوير وتعديل نظام الأصيل — لاستخدام واختبار التعديلات قبل اعتمادها</p>
+    <h1>الأصيل — نظام استخراج فاتورة على السريع</h1>
+    <p class="subtitle">قائمة الأصناف والأسعار — تعديل الكود والكمية والسعر ثم تصدير PDF أو صورة ومشاركة الفاتورة</p>
   </header>
 
   <section class="card">
@@ -492,7 +508,7 @@
     <h2>معاينة الفاتورة</h2>
     <div id="invoicePreview">
       <div class="inv-company">الأصيل للاستيراد الفوحات والمباخر</div>
-      <div class="inv-title">فاتورة إلكترونية</div>
+      <div class="inv-title">فاتورة</div>
       <div class="inv-meta">
         <div><b>العميل:</b> <span id="pClient">—</span></div>
         <div><b>رقم الفاتورة:</b> <span id="pInvNo">—</span></div>
@@ -502,6 +518,7 @@
         <thead>
           <tr>
             <th>م</th>
+            <th>الصورة</th>
             <th>كود الصنف</th>
             <th>الاسم</th>
             <th>الكمية</th>
@@ -511,7 +528,7 @@
           </tr>
         </thead>
         <tbody id="pInvoiceRows">
-          <tr><td class="pv-empty" colspan="7">لا توجد أصناف مضافة بعد</td></tr>
+          <tr><td class="pv-empty" colspan="8">لا توجد أصناف مضافة بعد</td></tr>
         </tbody>
       </table>
 
@@ -549,9 +566,10 @@
       </div>
 
       <div class="field">
-        <label>اختيار صنف أو أكثر</label>
+        <label>اختيار المنتجات — اضغط على صورة المنتج لإضافته</label>
         <select id="multiProductPicker" class="product-picker-select" multiple></select>
-        <div class="product-picker-help">استخدم Ctrl / Command على الكمبيوتر، أو اضغط على أكثر من صنف في الهاتف لتحديد عدة أصناف، ثم اضغط «إضافة المحدد».</div>
+        <div id="productPickerGrid" class="product-picker-grid"></div>
+        <div class="product-picker-help">حدد منتجًا أو أكثر بالضغط على الصور، ثم اضغط «إضافة المحدد». السعر والكود ينتقلان تلقائيًا ويمكن تعديلهما بعد الإضافة.</div>
       </div>
 
       <div class="product-picker-actions">
@@ -582,6 +600,18 @@
           <div class="field">
             <label>التصنيف</label>
             <input type="text" id="manageProductCategory" placeholder="مثال: USB">
+          </div>
+          <div class="field field-full">
+            <label>صورة المنتج</label>
+            <div class="manage-image-box">
+              <div id="manageImagePlaceholder" class="manage-image-placeholder">📷</div>
+              <img id="manageImagePreview" class="manage-image-preview" alt="معاينة صورة المنتج">
+              <div style="flex:1">
+                <input type="file" id="manageProductImage" accept="image/*" onchange="handleProductImageUpload(event)">
+                <div class="product-picker-help" style="margin:5px 0 0">ارفع صورة المنتج من الموبايل، وسيتم ضغطها وحفظها داخل بيانات الصنف على هذا الجهاز.</div>
+                <button class="btn-secondary" type="button" onclick="removeManagedImage()" style="margin-top:7px">حذف الصورة</button>
+              </div>
+            </div>
           </div>
         </div>
         <div class="product-picker-actions">
@@ -708,20 +738,7 @@ function formatMoney(n){
 }
 
 function generateInvoiceNumber(){
-  const fiveDigits = () => {
-    if(window.crypto && crypto.getRandomValues){
-      const buffer = new Uint32Array(1);
-      crypto.getRandomValues(buffer);
-      return String(10000 + (buffer[0] % 90000)).padStart(5, "0");
-    }
-    return String(10000 + Math.floor(Math.random() * 90000)).padStart(5, "0");
-  };
-  invoiceNumber = "0" + String(1000 + Math.floor(Math.random() * 9000));
-  if(window.crypto && crypto.getRandomValues){
-    const buffer = new Uint32Array(1);
-    crypto.getRandomValues(buffer);
-    invoiceNumber = "0" + String(1000 + (buffer[0] % 9000));
-  }
+  invoiceNumber = String(Date.now()).slice(-6).padStart(6, "0");
 }
 
 function getInvoiceFileBaseName(){
@@ -859,7 +876,7 @@ let CUSTOM_PRODUCTS = [];
 function getProducts(){
   const base = PRODUCTS.map(p => {
     const override = PRODUCT_OVERRIDES[p.code] || {};
-    return {...p, ...override};
+    return {...p, ...override, image: override.image || p.image || ""};
   });
   return base.concat(CUSTOM_PRODUCTS.map(p => ({...p})));
 }
@@ -922,116 +939,134 @@ function productOptionsHTML(selectedCode="", multiple=false){
   }).join("");
 }
 
+let selectedProductCodes = new Set();
+let managedProductImage = "";
+
+function renderProductPickerGrid(){
+  const grid = document.getElementById("productPickerGrid");
+  if(!grid) return;
+  const products = getProducts();
+  grid.innerHTML = products.map(p => {
+    const selected = selectedProductCodes.has(p.code);
+    const image = p.image ? '<img class="pc-img" src="' + escapeHtml(p.image) + '" alt="">' : '<div class="pc-noimg">📦</div>';
+    return '<button type="button" class="product-choice ' + (selected ? 'selected' : '') + '" onclick="toggleProductChoice(\'' + escapeHtml(p.code).replace(/'/g,"&#039;") + '\')" aria-pressed="' + selected + '">' +
+      '<span class="pc-check">✓</span>' + image +
+      '<span class="pc-code">' + escapeHtml(p.code) + '</span>' +
+      '<span class="pc-name">' + escapeHtml(p.name) + '</span>' +
+      '<span class="pc-price">' + escapeHtml(formatMoney(p.price)) + '</span></button>';
+  }).join("");
+}
+function toggleProductChoice(code){
+  if(selectedProductCodes.has(code)) selectedProductCodes.delete(code); else selectedProductCodes.add(code);
+  const picker = document.getElementById("multiProductPicker");
+  if(picker) Array.from(picker.options).forEach(o => o.selected = selectedProductCodes.has(o.value));
+  renderProductPickerGrid();
+}
+function handleProductImageUpload(event){
+  const file = event.target.files && event.target.files[0];
+  if(!file) return;
+  if(!file.type.startsWith("image/")){ alert("اختر ملف صورة فقط."); return; }
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const img = new Image();
+    img.onload = function(){
+      const max = 700;
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(img.width * scale));
+      canvas.height = Math.max(1, Math.round(img.height * scale));
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      managedProductImage = canvas.toDataURL("image/jpeg",0.82);
+      showManagedImage(managedProductImage);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function showManagedImage(src){
+  const img = document.getElementById("manageImagePreview");
+  const ph = document.getElementById("manageImagePlaceholder");
+  if(!img || !ph) return;
+  if(src){ img.src = src; img.style.display="block"; ph.style.display="none"; }
+  else { img.removeAttribute("src"); img.style.display="none"; ph.style.display="flex"; }
+}
+function removeManagedImage(){
+  managedProductImage = "";
+  const input = document.getElementById("manageProductImage");
+  if(input) input.value = "";
+  showManagedImage("");
+}
 function populateProductPicker(){
   const picker = document.getElementById("multiProductPicker");
-  if(!picker) return;
-  picker.innerHTML = productOptionsHTML("", true);
+  if(picker) picker.innerHTML = productOptionsHTML("", true);
+  renderProductPickerGrid();
 }
-
 function openProductPicker(){
+  selectedProductCodes = new Set();
   populateProductPicker();
   document.getElementById("productManageArea").style.display = "none";
   document.getElementById("productPickerModal").classList.add("open");
 }
-
-function closeProductPicker(){
-  document.getElementById("productPickerModal").classList.remove("open");
-}
-
+function closeProductPicker(){ document.getElementById("productPickerModal").classList.remove("open"); }
 function addSelectedProducts(){
   const picker = document.getElementById("multiProductPicker");
-  const codes = Array.from(picker.selectedOptions).map(o => o.value).filter(Boolean);
-  if(codes.length === 0){
-    alert("اختر صنفًا واحدًا على الأقل.");
-    return;
-  }
-
+  const codes = selectedProductCodes.size ? Array.from(selectedProductCodes) : Array.from(picker?.selectedOptions || []).map(o => o.value).filter(Boolean);
+  if(codes.length === 0){ alert("اختر صنفًا واحدًا على الأقل من الصور."); return; }
   const products = getProducts();
   codes.forEach(code => {
     const product = products.find(p => p.code === code);
     if(!product) return;
-    items.push({
-      id: nextId++,
-      code: product.code,
-      name: product.name,
-      price: product.price,
-      qty: 1,
-      notes: ""
-    });
+    items.push({id:nextId++,code:product.code,name:product.name,price:product.price,qty:1,notes:"",image:product.image||""});
   });
-
-  renderItems();
-  renderInvoice();
-  closeProductPicker();
+  renderItems(); renderInvoice(); closeProductPicker();
 }
-
 function prepareNewProduct(){
   document.getElementById("productManageArea").style.display = "block";
   document.getElementById("productManageTitle").textContent = "إضافة صنف جديد";
-  const fields = ["manageProductCode","manageProductName","manageProductPrice","manageProductCategory"];
-  fields.forEach(id => document.getElementById(id).value = "");
+  ["manageProductCode","manageProductName","manageProductPrice","manageProductCategory"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("manageProductCode").disabled = false;
+  managedProductImage = "";
+  const input=document.getElementById("manageProductImage"); if(input) input.value="";
+  showManagedImage("");
   document.getElementById("manageProductCode").focus();
 }
-
 function prepareEditProduct(){
-  const picker = document.getElementById("multiProductPicker");
-  const code = picker && picker.selectedOptions.length ? picker.selectedOptions[0].value : "";
-  if(!code){
-    alert("حدد صنفًا واحدًا من القائمة أولًا للتعديل.");
-    return;
-  }
-
-  const product = getProducts().find(p => p.code === code);
-  if(!product) return;
-
-  document.getElementById("productManageArea").style.display = "block";
-  document.getElementById("productManageTitle").textContent = "تعديل الصنف";
-  document.getElementById("manageProductCode").value = product.code;
-  document.getElementById("manageProductCode").disabled = true;
-  document.getElementById("manageProductName").value = product.name;
-  document.getElementById("manageProductPrice").value = product.price;
-  document.getElementById("manageProductCategory").value = product.category;
+  const picker=document.getElementById("multiProductPicker");
+  const code=selectedProductCodes.size?Array.from(selectedProductCodes)[0]:(picker&&picker.selectedOptions.length?picker.selectedOptions[0].value:"");
+  if(!code){alert("حدد صنفًا واحدًا من الصور أولًا للتعديل.");return;}
+  const product=getProducts().find(p=>p.code===code); if(!product)return;
+  document.getElementById("productManageArea").style.display="block";
+  document.getElementById("productManageTitle").textContent="تعديل الصنف";
+  document.getElementById("manageProductCode").value=product.code;
+  document.getElementById("manageProductCode").disabled=true;
+  document.getElementById("manageProductName").value=product.name;
+  document.getElementById("manageProductPrice").value=product.price;
+  document.getElementById("manageProductCategory").value=product.category;
+  managedProductImage=product.image||"";
+  const input=document.getElementById("manageProductImage"); if(input) input.value="";
+  showManagedImage(managedProductImage);
 }
-
 function saveManagedProduct(){
-  const code = document.getElementById("manageProductCode").value.trim();
-  const name = document.getElementById("manageProductName").value.trim();
-  const price = Math.max(0, parseFloat(document.getElementById("manageProductPrice").value) || 0);
-  const category = document.getElementById("manageProductCategory").value.trim() || "أصناف أخرى";
-
-  if(!code || !name){
-    alert("اكتب كود الصنف واسم الصنف.");
-    return;
-  }
-
-  const customIndex = CUSTOM_PRODUCTS.findIndex(p => p.code === code);
-  const defaultProduct = PRODUCTS.find(p => p.code === code);
-
-  if(customIndex >= 0){
-    CUSTOM_PRODUCTS[customIndex] = {code, name, price, category};
+  const code=document.getElementById("manageProductCode").value.trim();
+  const name=document.getElementById("manageProductName").value.trim();
+  const price=Math.max(0,parseFloat(document.getElementById("manageProductPrice").value)||0);
+  const category=document.getElementById("manageProductCategory").value.trim()||"أصناف أخرى";
+  if(!code||!name){alert("اكتب كود الصنف واسم الصنف.");return;}
+  const customIndex=CUSTOM_PRODUCTS.findIndex(p=>p.code===code);
+  const defaultProduct=PRODUCTS.find(p=>p.code===code);
+  if(customIndex>=0){
+    CUSTOM_PRODUCTS[customIndex]={code,name,price,category,image:managedProductImage||""};
   }else if(defaultProduct){
-    PRODUCT_OVERRIDES[code] = {name, price, category};
+    PRODUCT_OVERRIDES[code]={...(PRODUCT_OVERRIDES[code]||{}),name,price,category,image:managedProductImage||""};
   }else{
-    if(getProducts().some(p => p.code === code)){
-      alert("كود الصنف موجود بالفعل.");
-      return;
-    }
-    CUSTOM_PRODUCTS.push({code, name, price, category});
+    if(getProducts().some(p=>p.code===code)){alert("كود الصنف موجود بالفعل.");return;}
+    CUSTOM_PRODUCTS.push({code,name,price,category,image:managedProductImage||""});
   }
-
-  saveProductCatalog();
-  populateProductPicker();
-  renderItems();
-  renderInvoice();
-  cancelProductManagement();
-  alert("تم حفظ بيانات الصنف.");
+  saveProductCatalog(); populateProductPicker(); renderItems(); renderInvoice(); cancelProductManagement();
+  alert("تم حفظ بيانات الصنف والصورة بنجاح.");
 }
-
-function cancelProductManagement(){
-  document.getElementById("productManageArea").style.display = "none";
-}
-
+function cancelProductManagement(){document.getElementById("productManageArea").style.display="none";managedProductImage="";}
 /* =========================================================
    إدارة الأصناف
    ========================================================= */
@@ -1052,6 +1087,7 @@ function selectProduct(id, code){
   item.code = product.code;
   item.name = product.name;
   item.price = product.price;
+  item.image = product.image || "";
   item.qty = 1;
   renderItems();
   renderInvoice();
@@ -1175,7 +1211,10 @@ function itemCardHTML(item){
        ondrop="dropItem(event, ${item.id})"
        ondragend="endItemDrag(event)">
     <div class="item-card-head">
-      <span class="item-code-badge">${item.code || "—"}</span>
+      <div style="display:flex;align-items:center;gap:9px;">
+        ${item.image ? '<img class="item-product-image" src="' + escapeHtml(item.image) + '" alt="">' : '<div class="item-product-image-empty">📦</div>'}
+        <span class="item-code-badge">${item.code || "—"}</span>
+      </div>
       <div class="item-order-actions">
         <button class="move-btn" type="button" onclick="moveItem(${item.id}, -1)" title="تحريك لأعلى">↑</button>
         <button class="move-btn" type="button" onclick="moveItem(${item.id}, 1)" title="تحريك لأسفل">↓</button>
@@ -1234,6 +1273,7 @@ function renderInvoice(){
   document.getElementById("pInvNo").textContent = invoiceNumber;
   document.getElementById("pDate").textContent = formatDate();
 
+  items.forEach(i => { if(i.code && !i.image){ const p=getProducts().find(p=>p.code===i.code); if(p) i.image=p.image||""; } });
   const rows = items.filter(i => i.code);
   const rowsWrap = document.getElementById("pInvoiceRows");
   if(rows.length === 0){
@@ -1242,6 +1282,7 @@ function renderInvoice(){
     rowsWrap.innerHTML = rows.map((i, idx) => `
       <tr>
         <td>${idx + 1}</td>
+        <td>${i.image ? '<img src="' + escapeHtml(i.image) + '" style="width:42px;height:42px;object-fit:cover;border-radius:6px;background:#f3efe4" alt="">' : '—'}</td>
         <td>${i.code}</td>
         <td class="cell-name">${i.name}</td>
         <td>${i.qty}</td>
@@ -1323,233 +1364,191 @@ function preparePrintInvoice(){
   return printWindow;
 }
 
-async function buildInvoicePDFBlob(){
-  if(items.filter(i => i.code).length === 0) throw new Error("أضف صنف واحد على الأقل قبل تصدير الفاتورة");
-  if(typeof html2pdf !== "function") throw new Error("مكتبة PDF غير متاحة");
-  renderInvoice();
-  if(document.fonts && document.fonts.ready){ try{ await document.fonts.ready; }catch(e){} }
-  const source = document.getElementById("invoicePreview");
-  if(!source) throw new Error("لم يتم العثور على معاينة الفاتورة");
-  const opt = {
-    margin:[8,8,8,8],
-    filename:getInvoiceFileBaseName()+".pdf",
-    image:{type:"jpeg",quality:0.96},
-    html2canvas:{
-      scale:/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)?1.35:2,
-      useCORS:true,allowTaint:false,backgroundColor:"#ffffff",logging:false,scrollX:0,scrollY:0
-    },
-    jsPDF:{unit:"mm",format:"a4",orientation:"portrait",compress:true},
-    pagebreak:{mode:["css","legacy"]}
-  };
-  return await html2pdf().set(opt).from(source).outputPdf("blob");
-}
-async function downloadPDFBlob(blob){
-  const url=URL.createObjectURL(blob);
-  const link=document.createElement("a");
-  link.href=url; link.download=getInvoiceFileBaseName()+".pdf";
-  document.body.appendChild(link); link.click(); link.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),10000);
-}
 async function exportPDF(){
-  if(items.filter(i => i.code).length===0){ alert("أضف صنف واحد على الأقل قبل تصدير الفاتورة"); return; }
+  if(items.filter(i => i.code).length === 0){
+    alert("أضف صنف واحد على الأقل قبل تصدير الفاتورة");
+    return;
+  }
+
   try{
-    const blob=await buildInvoicePDFBlob();
-    await downloadPDFBlob(blob);
-    alert("تم إنشاء ملف PDF وتنزيله على الجهاز.");
+    const printWindow = preparePrintInvoice();
+
+    await new Promise(resolve => {
+      if(printWindow.document.readyState === "complete") resolve();
+      else printWindow.addEventListener("load", resolve, {once:true});
+      setTimeout(resolve, 700);
+    });
+
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 150);
   }catch(err){
-    console.error("exportPDF error:",err);
-    alert("تعذر إنشاء PDF على هذا الجهاز. جرّب مرة أخرى أو استخدم متصفح Chrome.");
+    console.error("exportPDF error:", err);
+    alert("تعذر فتح نافذة طباعة الفاتورة. إذا لم تظهر، اسمح بالنوافذ المنبثقة لهذا الموقع وحاول مرة أخرى.");
   }
 }
 
 /*
-  تصدير الصورة أصبح JPG حقيقيًا عالي الجودة يحتوي على الفاتورة نفسها.
+  تصدير الصورة أصبح SVG حقيقيًا يحتوي على الفاتورة نفسها.
   لا يعتمد على html2canvas أو jsPDF، وبالتالي لا يمكن أن ينتج Canvas أبيض.
-  يتم تحويل الفاتورة إلى JPG ويمكن مشاركتها مباشرة عبر قائمة المشاركة على الهاتف.
+  SVG ملف صورة ويمكن فتحه وإرساله، كما يمكن طباعته/تحويله إلى PNG من الهاتف.
 */
 function exportInvoiceImage(onReady){
+  if(items.filter(i => i.code).length === 0){
+    alert("أضف صنف واحد على الأقل قبل تصدير الصورة");
+    return;
+  }
+
+  try{
+    renderInvoice();
+    const source = document.getElementById("invoicePreview");
+    if(!source) throw new Error("لم يتم العثور على معاينة الفاتورة");
+
+    const rect = source.getBoundingClientRect();
+    const width = Math.max(794, Math.ceil(rect.width || source.scrollWidth || 794));
+    const height = Math.max(1123, Math.ceil(source.scrollHeight || rect.height || 1123));
+
+    // نبني SVG من DOM الحقيقي، وليس من HTML محوّل إلى نص.
+    // ثم نحوّله إلى PNG عبر Canvas.
+    const serializer = new XMLSerializer();
+    const sourceClone = source.cloneNode(true);
+
+    const styleText = Array.from(document.querySelectorAll("style"))
+      .map(s => s.textContent)
+      .join("\n");
+
+    const svgDoc = document.implementation.createDocument("http://www.w3.org/2000/svg", "svg", null);
+    const svg = svgDoc.documentElement;
+    svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    svg.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+    svg.setAttribute("width", String(width));
+    svg.setAttribute("height", String(height));
+    svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+    const bg = svgDoc.createElementNS("http://www.w3.org/2000/svg", "rect");
+    bg.setAttribute("width", "100%");
+    bg.setAttribute("height", "100%");
+    bg.setAttribute("fill", "#ffffff");
+    svg.appendChild(bg);
+
+    const foreign = svgDoc.createElementNS("http://www.w3.org/2000/svg", "foreignObject");
+    foreign.setAttribute("x", "0");
+    foreign.setAttribute("y", "0");
+    foreign.setAttribute("width", String(width));
+    foreign.setAttribute("height", String(height));
+
+    const wrapper = svgDoc.createElementNS("http://www.w3.org/1999/xhtml", "div");
+    wrapper.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+    wrapper.setAttribute("dir", "rtl");
+    wrapper.setAttribute("style", `width:${width}px;min-height:${height}px;background:#fff;`);
+
+    const styleEl = svgDoc.createElementNS("http://www.w3.org/1999/xhtml", "style");
+    styleEl.textContent = styleText;
+    wrapper.appendChild(styleEl);
+
+    const invoiceNode = svgDoc.importNode(sourceClone, true);
+    wrapper.appendChild(invoiceNode);
+    foreign.appendChild(wrapper);
+    svg.appendChild(foreign);
+
+    const svgText = serializer.serializeToString(svg);
+    const svgBlob = new Blob([svgText], {type:"image/svg+xml;charset=utf-8"});
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    const img = new Image();
+    img.onload = function(){
+      try{
+        const scale = 2;
+        const canvas = document.createElement("canvas");
+        canvas.width = width * scale;
+        canvas.height = height * scale;
+
+        const ctx = canvas.getContext("2d");
+        if(!ctx) throw new Error("Canvas غير متاح");
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(function(blob){
+          URL.revokeObjectURL(svgUrl);
+          if(!blob) throw new Error("تعذر إنشاء PNG");
+          if(typeof onReady === "function"){
+            onReady(blob);
+            return;
+          }
+
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = getInvoiceFileBaseName() + ".png";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 10000);
+        }, "image/png");
+      }catch(err){
+        URL.revokeObjectURL(svgUrl);
+        console.error("PNG render error:", err);
+        alert("تعذر تحويل الفاتورة إلى صورة. حاول مرة أخرى.");
+      }
+    };
+
+    img.onerror = function(){
+      URL.revokeObjectURL(svgUrl);
+      console.error("SVG image load error");
+      alert("تعذر تجهيز صورة الفاتورة. حاول مرة أخرى.");
+    };
+
+    img.src = svgUrl;
+  }catch(err){
+    console.error("exportInvoiceImage error:", err);
+    if(typeof onReady === "function") onReady(null);
+    alert("تعذر إنشاء صورة الفاتورة. حاول مرة أخرى.");
+  }
+}
+async function shareWhatsApp(){
   if(items.filter(i => i.code).length === 0){
     alert("أضف صنف واحد على الأقل قبل الإرسال");
     return;
   }
 
-  // بديل أكثر ثباتًا: نبني صورة الفاتورة بالكامل كـ SVG مباشر
-  // بدون foreignObject أو html2canvas، ثم نحول الـ SVG إلى JPG.
-  renderInvoice();
-
-    const rows = items.filter(i => i.code);
-    const client = document.getElementById("clientName").value.trim() || "—";
-    const notes = document.getElementById("notesInput").value.trim();
-    const subtotal = calculateSubtotal();
-    const grandTotal = calculateTotal();
-    const discount = calculateDiscountAmount();
-
-    const W = 1200;
-    const rowH = 72;
-    const headerH = 270;
-    const tableH = 74;
-    const totalsH = 190;
-    const notesH = notes ? 110 : 0;
-    const H = Math.max(1500, headerH + tableH + rows.length * rowH + totalsH + notesH + 80);
-
-    const esc = (v) => String(v ?? "")
-      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
-      .replace(/"/g,"&quot;").replace(/'/g,"&apos;");
-
-    const money = (v) => formatMoney(v).replace(" ج.م","");
-
-    const textEl = (x,y,text,size=26,weight=600,anchor="middle",fill="#241f1a") =>
-      '<text x="'+x+'" y="'+y+'" font-family="Cairo, Tahoma, Arial, sans-serif" font-size="'+size+'" font-weight="'+weight+'" text-anchor="'+anchor+'" fill="'+fill+'">'+esc(text)+'</text>';
-
-    let svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">';
-    svg += '<rect width="100%" height="100%" fill="#ffffff"/>';
-
-    // رأس الفاتورة
-    svg += textEl(W/2,58,"الأصيل للاستيراد الفوحات والمباخر",38,800,"middle","#1c2b4a");
-    svg += textEl(W/2,102,"فاتورة",30,700,"middle","#c9822f");
-    svg += '<line x1="60" y1="130" x2="1140" y2="130" stroke="#e6ddca" stroke-width="2"/>';
-    svg += textEl(1140,170,"العميل:",24,800,"end","#1c2b4a");
-    svg += textEl(1015,170,client,24,600,"end","#241f1a");
-    svg += textEl(620,170,"رقم الفاتورة:",24,800,"end","#1c2b4a");
-    svg += textEl(470,170,invoiceNumber,24,600,"end","#241f1a");
-    svg += textEl(260,170,"التاريخ:",24,800,"end","#1c2b4a");
-    svg += textEl(100,170,formatDate(),24,600,"start","#241f1a");
-    svg += '<line x1="60" y1="200" x2="1140" y2="200" stroke="#e6ddca" stroke-width="2"/>';
-
-    const y0=headerH;
-    const cols=[60,140,330,680,800,950,1140];
-    svg += '<rect x="60" y="'+y0+'" width="1080" height="'+tableH+'" rx="3" fill="#1c2b4a"/>';
-    const headers=["م","كود الصنف","الاسم","الكمية","السعر","الإجمالي","ملاحظات"];
-    headers.forEach((h,i)=>{
-      const cx=(cols[i]+cols[i+1])/2;
-      svg += textEl(cx,y0+48,h,21,800,"middle","#ffffff");
-    });
-
-    rows.forEach((item,idx)=>{
-      const y=y0+tableH+idx*rowH;
-      if(idx%2===1) svg += '<rect x="60" y="'+y+'" width="1080" height="'+rowH+'" fill="#faf8f3"/>';
-      svg += '<rect x="60" y="'+y+'" width="1080" height="'+rowH+'" fill="none" stroke="#e6ddca" stroke-width="1"/>';
-      for(let j=1;j<cols.length-1;j++) svg += '<line x1="'+cols[j]+'" y1="'+y+'" x2="'+cols[j]+'" y2="'+(y+rowH)+'" stroke="#e6ddca" stroke-width="1"/>';
-      const vals=[
-        idx+1,item.code,item.name,item.qty,money(item.price),money(calculateItemTotal(item)),item.notes||"—"
-      ];
-      vals.forEach((v,i)=>{
-        const cx=(cols[i]+cols[i+1])/2;
-        const fs=i===2||i===6?19:21;
-        svg += textEl(cx,y+45,v,fs,600,"middle","#241f1a");
+  try{
+    const blob = await new Promise((resolve, reject) => {
+      exportInvoiceImage((imageBlob) => {
+        if(imageBlob) resolve(imageBlob);
+        else reject(new Error("تعذر إنشاء صورة الفاتورة"));
       });
     });
 
-    let ty=y0+tableH+rows.length*rowH+35;
-    svg += '<rect x="60" y="'+ty+'" width="1080" height="58" fill="#f3efe4" rx="8"/>';
-    svg += textEl(1100,ty+38,"الإجمالي قبل الخصم",22,700,"end","#1c2b4a");
-    svg += textEl(850,ty+38,money(subtotal)+" ج.م",22,700,"end","#1c2b4a");
-    ty+=66;
-    svg += textEl(1100,ty+38,"الخصم",22,700,"end","#b3452f");
-    svg += textEl(850,ty+38,discount+" ج.م ("+discountPercent+"%)",22,700,"end","#b3452f");
-    ty+=72;
-    svg += '<line x1="60" y1="'+ty+'" x2="1140" y2="'+ty+'" stroke="#1c2b4a" stroke-width="3"/>';
-    svg += textEl(1100,ty+48,"الإجمالي الكلي",28,800,"end","#1c2b4a");
-    svg += textEl(850,ty+48,money(grandTotal)+" ج.م",28,800,"end","#1c2b4a");
-    ty+=82;
-    svg += '<rect x="60" y="'+ty+'" width="1080" height="58" fill="#f3efe4" rx="8"/>';
-    svg += textEl(1100,ty+38,"المبلغ كتابةً: "+amountToArabicWords(grandTotal),20,700,"end","#1c2b4a");
-
-    if(notes){
-      ty+=82;
-      svg += '<line x1="60" y1="'+ty+'" x2="1140" y2="'+ty+'" stroke="#e6ddca" stroke-width="2"/>';
-      svg += textEl(1100,ty+40,"ملاحظات: "+notes,20,600,"end","#241f1a");
-    }
-
-    svg += textEl(W/2,H-28,"برمجة وتطوير محمد حسني احمد",18,600,"middle","#79706e");
-    svg += '</svg>';
-
-    // نستخدم Data URI بدل Blob URL لأن بعض متصفحات الموبايل/WebView لا تتعامل
-    // بثبات مع تحميل SVG من blob: داخل عنصر Image.
-    const svgDataUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
-    const img = new Image();
-
-    img.onload = function(){
-      try{
-        // على الهاتف نستخدم دقة أخف لتقليل استهلاك الذاكرة، وعلى الكمبيوتر دقة أعلى.
-        const scale = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? 1.25 : 2;
-        const canvas=document.createElement("canvas");
-        canvas.width=Math.round(W*scale);
-        canvas.height=Math.round(H*scale);
-        const ctx=canvas.getContext("2d", {alpha:false});
-        if(!ctx) throw new Error("Canvas غير متاح");
-        ctx.fillStyle="#ffffff";
-        ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.drawImage(img,0,0,canvas.width,canvas.height);
-
-        const finish = (jpg) => {
-          if(jpg){
-            if(typeof onReady==="function") onReady(jpg);
-            return;
-          }
-          // fallback إضافي للمتصفحات التي لا تنفذ toBlob بشكل سليم.
-          try{
-            const dataUrl = canvas.toDataURL("image/jpeg",0.92);
-            const binary = atob(dataUrl.split(",")[1]);
-            const bytes = new Uint8Array(binary.length);
-            for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
-            if(typeof onReady==="function") onReady(new Blob([bytes],{type:"image/jpeg"}));
-          }catch(fallbackErr){
-            console.error("JPG fallback error:",fallbackErr);
-            if(typeof onReady==="function") onReady(null);
-          }
-        };
-
-        if(typeof canvas.toBlob === "function"){
-          canvas.toBlob(finish,"image/jpeg",0.92);
-        }else{
-          finish(null);
-        }
-      }catch(err){
-        console.error("Mobile SVG JPG render error:",err);
-        if(typeof onReady==="function") onReady(null);
-      }
-    };
-    img.onerror=function(err){
-      console.error("SVG image load error:",err);
-      if(typeof onReady==="function") onReady(null);
-    };
-    img.src=svgDataUrl;
-}
-async function shareWhatsApp(){
-  if(items.filter(i => i.code).length===0){ alert("أضف صنف واحد على الأقل قبل الإرسال"); return; }
-  try{
-    const blob=await buildInvoicePDFBlob();
-    const file=new File([blob],getInvoiceFileBaseName()+".pdf",{type:"application/pdf"});
-    const whatsappText=[
-      "الأصيل لاستيراد الفوحات والمباخر",
-      "فاتورة رقم: "+invoiceNumber,
-      "العميل: "+(document.getElementById("clientName").value.trim()||"—"),
-      "",
-      ...items.filter(i => i.code).map((i,idx)=>(idx+1)+"- "+i.name+" | كود: "+i.code+" | كمية: "+i.qty),
-      "",
-      "الإجمالي الكلي: "+formatMoney(calculateTotal())
-    ].join("\n");
+    const file = new File([blob], getInvoiceFileBaseName() + ".png", {type:"image/png"});
     if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-      try{
-        await navigator.share({
-          files:[file],
-          title:"فاتورة الأصيل - "+invoiceNumber,
-          text:"فاتورة العميل "+(document.getElementById("clientName").value.trim()||"—")
-        });
-        return;
-      }catch(err){
-        if(err && err.name==="AbortError") return;
-        console.warn("PDF file share unavailable, using download fallback:",err);
-      }
+      await navigator.share({
+        files:[file],
+        title:"فاتورة الأصيل - " + invoiceNumber,
+        text:"فاتورة العميل " + (document.getElementById("clientName").value.trim() || "—")
+      });
+      return;
     }
-    await downloadPDFBlob(blob);
-    window.open("https://wa.me/?text="+encodeURIComponent(whatsappText),"_blank","noopener");
-    setTimeout(()=>alert("تم تنزيل ملف PDF وفتح واتساب. أرفق ملف الـPDF من التنزيلات داخل المحادثة."),500);
+
+    const lines = items.filter(i => i.code).map((i, idx) =>
+      (idx+1) + "- " + i.name + " | كود: " + i.code + " | كمية: " + i.qty
+    );
+    const message = [
+      "الأصيل لاستيراد الفوحات والمباخر",
+      "فاتورة رقم: " + invoiceNumber,
+      "العميل: " + (document.getElementById("clientName").value.trim() || "—"),
+      "",
+      ...lines,
+      "",
+      "الإجمالي الكلي: " + formatMoney(calculateTotal())
+    ].join("\n");
+    window.open("https://wa.me/?text=" + encodeURIComponent(message), "_blank");
   }catch(err){
-    console.error("shareWhatsApp PDF error:",err);
-    if(err && err.name==="AbortError") return;
-    alert("تعذر إنشاء PDF على هذا الجهاز. جرّب متصفح Chrome.");
+    console.error("shareWhatsApp error:", err);
+    if(err && err.name === "AbortError") return;
+    alert("تعذر مشاركة الفاتورة. حاول مرة أخرى.");
   }
 }
 
