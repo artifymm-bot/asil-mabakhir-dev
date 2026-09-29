@@ -1515,14 +1515,74 @@ async function shareWhatsApp(){
   }
 
   try{
-    const blob = await new Promise((resolve, reject) => {
-      exportInvoiceImage((imageBlob) => {
-        if(imageBlob) resolve(imageBlob);
-        else reject(new Error("تعذر إنشاء صورة الفاتورة"));
-      });
-    });
+    renderInvoice();
+    const source = document.getElementById("invoicePreview");
+    if(!source) throw new Error("لم يتم العثور على معاينة الفاتورة");
 
-    const file = new File([blob], getInvoiceFileBaseName() + ".png", {type:"image/png"});
+    // إنشاء PDF فعلي من معاينة الفاتورة ثم مشاركته إلى واتساب.
+    // نستخدم نسخة مستقلة من المعاينة حتى لا تتأثر واجهة التطبيق.
+    const clone = source.cloneNode(true);
+    clone.style.width = "794px";
+    clone.style.maxWidth = "794px";
+    clone.style.margin = "0";
+    clone.style.padding = "24px";
+    clone.style.background = "#fff";
+    clone.style.border = "0";
+    clone.style.borderRadius = "0";
+
+    const holder = document.createElement("div");
+    holder.style.position = "fixed";
+    holder.style.left = "-100000px";
+    holder.style.top = "0";
+    holder.style.width = "794px";
+    holder.style.background = "#fff";
+    holder.style.padding = "0";
+    holder.appendChild(clone);
+    document.body.appendChild(holder);
+
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+    if(typeof html2pdf !== "function"){
+      holder.remove();
+      throw new Error("مكتبة PDF غير متاحة");
+    }
+
+    const options = {
+      margin: [8, 8, 8, 8],
+      filename: getInvoiceFileBaseName() + ".pdf",
+      image: {type:"jpeg", quality:0.98},
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false
+      },
+      jsPDF: {
+        unit: "mm",
+        format: "a4",
+        orientation: "portrait"
+      },
+      pagebreak: {mode:["css","legacy"]}
+    };
+
+    const pdfBlob = await html2pdf()
+      .set(options)
+      .from(clone)
+      .outputPdf("blob");
+
+    holder.remove();
+
+    if(!pdfBlob || pdfBlob.size < 1000){
+      throw new Error("ملف PDF فارغ أو غير صالح");
+    }
+
+    const file = new File(
+      [pdfBlob],
+      getInvoiceFileBaseName() + ".pdf",
+      {type:"application/pdf"}
+    );
+
+    // على الهاتف: مشاركة ملف PDF مباشرة، ومنها اختيار واتساب.
     if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
       await navigator.share({
         files:[file],
@@ -1532,23 +1592,20 @@ async function shareWhatsApp(){
       return;
     }
 
-    const lines = items.filter(i => i.code).map((i, idx) =>
-      (idx+1) + "- " + i.name + " | كود: " + i.code + " | كمية: " + i.qty
-    );
-    const message = [
-      "الأصيل لاستيراد الفوحات والمباخر",
-      "فاتورة رقم: " + invoiceNumber,
-      "العميل: " + (document.getElementById("clientName").value.trim() || "—"),
-      "",
-      ...lines,
-      "",
-      "الإجمالي الكلي: " + formatMoney(calculateTotal())
-    ].join("\n");
-    window.open("https://wa.me/?text=" + encodeURIComponent(message), "_blank");
+    // إذا كان المتصفح لا يدعم مشاركة الملفات، ننزل PDF بدل فتح واتساب بصورة.
+    const url = URL.createObjectURL(pdfBlob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = getInvoiceFileBaseName() + ".pdf";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+    alert("تم تجهيز الفاتورة بصيغة PDF. افتح الملف ثم اختر واتساب للمشاركة.");
   }catch(err){
-    console.error("shareWhatsApp error:", err);
-    if(err && err.name === "AbortError") return;
-    alert("تعذر مشاركة الفاتورة. حاول مرة أخرى.");
+    console.error("shareWhatsApp PDF error:", err);
+    alert("تعذر تجهيز PDF للمشاركة. حاول مرة أخرى.");
   }
 }
 
