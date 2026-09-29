@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root{
     --navy:#1c2b4a;
@@ -1515,65 +1516,63 @@ async function shareWhatsApp(){
   }
 
   try{
-    renderInvoice();
-    const source = document.getElementById("invoicePreview");
-    if(!source) throw new Error("لم يتم العثور على معاينة الفاتورة");
+    // أولاً نستخدم نفس محرك الصورة الذي تم اختباره مع الفاتورة.
+    // ثم نحول الصورة نفسها إلى PDF عبر jsPDF. بهذه الطريقة لا يتم
+    // الاعتماد على html2canvas لالتقاط نسخة مخفية من الفاتورة، وهو
+    // سبب ظهور PDF أبيض في بعض المتصفحات.
+    const imageBlob = await new Promise((resolve, reject) => {
+      exportInvoiceImage((blob) => {
+        if(blob) resolve(blob);
+        else reject(new Error("تعذر إنشاء صورة الفاتورة"));
+      });
+    });
 
-    // إنشاء PDF فعلي من معاينة الفاتورة ثم مشاركته إلى واتساب.
-    // نستخدم نسخة مستقلة من المعاينة حتى لا تتأثر واجهة التطبيق.
-    const clone = source.cloneNode(true);
-    clone.style.width = "794px";
-    clone.style.maxWidth = "794px";
-    clone.style.margin = "0";
-    clone.style.padding = "24px";
-    clone.style.background = "#fff";
-    clone.style.border = "0";
-    clone.style.borderRadius = "0";
-
-    const holder = document.createElement("div");
-    holder.style.position = "fixed";
-    holder.style.left = "-100000px";
-    holder.style.top = "0";
-    holder.style.width = "794px";
-    holder.style.background = "#fff";
-    holder.style.padding = "0";
-    holder.appendChild(clone);
-    document.body.appendChild(holder);
-
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-
-    if(typeof html2pdf !== "function"){
-      holder.remove();
-      throw new Error("مكتبة PDF غير متاحة");
+    if(!imageBlob || imageBlob.size < 1000){
+      throw new Error("صورة الفاتورة فارغة");
     }
 
-    const options = {
-      margin: [8, 8, 8, 8],
-      filename: getInvoiceFileBaseName() + ".pdf",
-      image: {type:"jpeg", quality:0.98},
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        logging: false
-      },
-      jsPDF: {
-        unit: "mm",
-        format: "a4",
-        orientation: "portrait"
-      },
-      pagebreak: {mode:["css","legacy"]}
-    };
+    if(!window.jspdf || !window.jspdf.jsPDF){
+      throw new Error("مكتبة إنشاء PDF غير متاحة");
+    }
 
-    const pdfBlob = await html2pdf()
-      .set(options)
-      .from(clone)
-      .outputPdf("blob");
+    const imageData = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(imageBlob);
+    });
 
-    holder.remove();
+    const img = new Image();
+    const imageSize = await new Promise((resolve, reject) => {
+      img.onload = () => resolve({width: img.naturalWidth, height: img.naturalHeight});
+      img.onerror = reject;
+      img.src = imageData;
+    });
 
+    const {jsPDF} = window.jspdf;
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+      compress: true
+    });
+
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const margin = 4;
+    const maxWidth = pageWidth - margin * 2;
+    const maxHeight = pageHeight - margin * 2;
+    const ratio = Math.min(maxWidth / imageSize.width, maxHeight / imageSize.height);
+    const drawWidth = imageSize.width * ratio;
+    const drawHeight = imageSize.height * ratio;
+    const x = (pageWidth - drawWidth) / 2;
+    const y = margin;
+
+    pdf.addImage(imageData, "PNG", x, y, drawWidth, drawHeight, undefined, "FAST");
+
+    const pdfBlob = pdf.output("blob");
     if(!pdfBlob || pdfBlob.size < 1000){
-      throw new Error("ملف PDF فارغ أو غير صالح");
+      throw new Error("ملف PDF الناتج فارغ");
     }
 
     const file = new File(
@@ -1582,7 +1581,6 @@ async function shareWhatsApp(){
       {type:"application/pdf"}
     );
 
-    // على الهاتف: مشاركة ملف PDF مباشرة، ومنها اختيار واتساب.
     if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
       await navigator.share({
         files:[file],
@@ -1592,7 +1590,6 @@ async function shareWhatsApp(){
       return;
     }
 
-    // إذا كان المتصفح لا يدعم مشاركة الملفات، ننزل PDF بدل فتح واتساب بصورة.
     const url = URL.createObjectURL(pdfBlob);
     const link = document.createElement("a");
     link.href = url;
@@ -1605,6 +1602,7 @@ async function shareWhatsApp(){
     alert("تم تجهيز الفاتورة بصيغة PDF. افتح الملف ثم اختر واتساب للمشاركة.");
   }catch(err){
     console.error("shareWhatsApp PDF error:", err);
+    if(err && err.name === "AbortError") return;
     alert("تعذر تجهيز PDF للمشاركة. حاول مرة أخرى.");
   }
 }
