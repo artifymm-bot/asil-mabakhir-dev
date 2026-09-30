@@ -269,8 +269,9 @@
     display:flex; justify-content:space-between; align-items:center;
     margin-top: 16px;
     padding: 14px 16px;
-    background: var(--navy);
-    color:#fff;
+    background: var(--danger-bg);
+    color: var(--danger);
+    border:1px solid rgba(179,69,47,.28);
     border-radius: 12px;
     font-weight:800;
     font-size: 16px;
@@ -347,7 +348,8 @@
   }
   .totals-row.discount-value-row{ color: var(--danger); background: var(--danger-bg); }
   #pTotalsBlock .totals-row{ background:transparent; border-bottom:1px dashed var(--border); border-radius:0; padding:6px 0; font-size:15px; }
-  #pTotalsBlock .grand-row{ border-bottom:none; margin-top:6px; padding-top:10px; border-top:1.5px solid var(--navy); font-size:18px; }
+  #pTotalsBlock .grand-row{ border-bottom:none; margin-top:6px; padding-top:10px; border-top:1.5px solid var(--danger); font-size:18px; color:var(--danger); }
+  #pGrandTotal{color:var(--danger);font-weight:900;}
   #pAmountWords{
     margin-top: 10px;
     font-size:15px;
@@ -923,7 +925,8 @@ async function loadProductsFromSupabase(){
 
 function applyLocalImagesToProducts(){
   DB_PRODUCTS.forEach(p => {
-    p.image = LOCAL_IMAGES[p.code] || "";
+    // الصورة المحلية على الجهاز لها أولوية، وإن لم توجد نستخدم الصورة المركزية.
+    p.image = LOCAL_IMAGES[p.code] || p.image_url || "";
   });
 }
 
@@ -934,7 +937,7 @@ function refreshCurrentItemsFromCatalog(){
     const p = products.find(x => x.code === item.code);
     if(!p) return;
     item.name = p.name;
-    item.price = p.price;
+    // لا نغيّر سعر سطر الفاتورة يدويًا أثناء مزامنة الكتالوج.
     item.image = p.image || "";
   });
 }
@@ -968,7 +971,8 @@ function getProducts(){
     return source.map(p => ({
       ...p,
       category: p.category || inferCategory(p.code),
-      image: LOCAL_IMAGES[p.code] || ""
+      // صورة الجهاز إن وُجدت تتغلب على الصورة المركزية، وإلا تظهر الصورة المشتركة.
+      image: LOCAL_IMAGES[p.code] || p.image_url || ""
     }));
   }
 
@@ -1213,7 +1217,7 @@ function showManagedImage(src){
   if(src){ img.src = src; img.style.display="block"; ph.style.display="none"; }
   else { img.removeAttribute("src"); img.style.display="none"; ph.style.display="flex"; }
 }
-async function removeManagedImage(){
+async async function removeManagedImage(){
   managedProductImage = "";
   const input = document.getElementById("manageProductImage");
   if(input) input.value = "";
@@ -1282,7 +1286,7 @@ async function saveManagedProduct(){
   if(productsLoadedFromSupabase){
     const { error } = await supabaseClient
       .from("products")
-      .update({name, price, updated_at:new Date().toISOString()})
+      .update({name, price})
       .eq("code", code);
 
     if(error){
@@ -1588,7 +1592,7 @@ function preparePrintInvoice(){
     <title>${getInvoiceFileBaseName()}</title>
     <style>
       ${styles}
-      @page{size:A4;margin:10mm}
+      @page{size:A4 landscape;margin:8mm}
       html,body{margin:0!important;padding:0!important;background:#fff!important}
       body{font-family:'Cairo',Tahoma,sans-serif!important}
       .invoice-print-wrap{width:100%;background:#fff}
@@ -1746,14 +1750,14 @@ async function shareWhatsApp(){
 
     const {jsPDF} = window.jspdf;
     const pdf = new jsPDF({
-      orientation: "portrait",
+      orientation: "landscape",
       unit: "mm",
       format: "a4",
       compress: true
     });
 
-    const pageWidth = 210;
-    const pageHeight = 297;
+    const pageWidth = 297;
+    const pageHeight = 210;
     const margin = 4;
     const maxWidth = pageWidth - margin * 2;
     const maxHeight = pageHeight - margin * 2;
