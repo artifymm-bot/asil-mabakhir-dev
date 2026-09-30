@@ -1004,7 +1004,7 @@ function openImageDB(){
   });
 }
 
-async function loadLocalImages(){
+async async function loadLocalImages(){
   try{
     const db = await openImageDB();
     LOCAL_IMAGES = await new Promise((resolve, reject) => {
