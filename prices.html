@@ -16,7 +16,13 @@
 .toolbar{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}.search{width:100%;font:inherit;padding:11px 13px;border:1px solid var(--border);border-radius:10px}.status{font-size:12px;font-weight:700;color:var(--ok);white-space:nowrap}
 .actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.btn{border:0;border-radius:9px;padding:9px 14px;font:inherit;font-weight:800;cursor:pointer}.btn-primary{background:var(--orange);color:#fff}.btn-secondary{background:#edf0f5;color:var(--navy)}.btn-danger{background:#f9e9e5;color:var(--danger)}.btn:disabled{opacity:.5;cursor:not-allowed}
 .add-box{display:none;background:#fbfaf7;border:1px dashed var(--border);border-radius:12px;padding:13px;margin-top:12px}.add-box.open{display:block}.form-grid{display:grid;grid-template-columns:150px 1fr 150px auto;gap:9px;align-items:end}.field label{display:block;font-size:12px;font-weight:800;margin:0 0 5px;color:var(--navy)}input{font:inherit;border:1px solid var(--border);border-radius:8px;padding:9px;width:100%;background:#fff}
-.table-wrap{overflow:auto}.row{display:grid;grid-template-columns:95px minmax(190px,1fr) 140px 155px;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid #eee8dc;min-width:650px}.row.headrow{font-weight:800;color:var(--navy);padding-top:0}.code{font-weight:800;color:var(--navy)}.price{font-weight:800}.row-actions{display:flex;gap:5px;align-items:center}.save{background:var(--orange);color:#fff;border:0;border-radius:8px;padding:8px 10px;font:inherit;font-weight:800;cursor:pointer}.delete{background:#fff;border:1px solid #e8c5bc;color:var(--danger);border-radius:8px;padding:7px 9px;font:inherit;font-weight:800;cursor:pointer}.save:disabled,.delete:disabled{opacity:.45;cursor:not-allowed}.msg{font-size:11px;color:var(--ok);font-weight:700}.empty{text-align:center;padding:25px;color:var(--muted)}.hint{font-size:12px;color:var(--muted);margin-top:8px}.danger-note{color:var(--danger);font-weight:700}
+.table-wrap{overflow:auto}.row{display:grid;grid-template-columns:82px 86px minmax(190px,1fr) 130px 235px;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid #eee8dc;min-width:850px}
+.thumb{width:58px;height:58px;border-radius:9px;object-fit:cover;background:#f3efe4;border:1px solid var(--border)}
+.no-thumb{width:58px;height:58px;border-radius:9px;background:#f3efe4;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:22px}
+.image-actions{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.file-label{display:inline-flex;align-items:center;justify-content:center;background:#edf0f5;color:var(--navy);border:1px solid #d9dee8;border-radius:8px;padding:7px 9px;font:inherit;font-weight:800;cursor:pointer}
+.file-label input{display:none}
+.image-msg{font-size:10px;color:var(--ok);font-weight:700;display:block;width:100%}.row.headrow{font-weight:800;color:var(--navy);padding-top:0}.code{font-weight:800;color:var(--navy)}.price{font-weight:800}.row-actions{display:flex;gap:5px;align-items:center}.save{background:var(--orange);color:#fff;border:0;border-radius:8px;padding:8px 10px;font:inherit;font-weight:800;cursor:pointer}.delete{background:#fff;border:1px solid #e8c5bc;color:var(--danger);border-radius:8px;padding:7px 9px;font:inherit;font-weight:800;cursor:pointer}.save:disabled,.delete:disabled{opacity:.45;cursor:not-allowed}.msg{font-size:11px;color:var(--ok);font-weight:700}.empty{text-align:center;padding:25px;color:var(--muted)}.hint{font-size:12px;color:var(--muted);margin-top:8px}.danger-note{color:var(--danger);font-weight:700}
 @media(max-width:700px){.toolbar{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr 1fr}.form-grid .wide{grid-column:1/-1}.actions{justify-content:stretch}.actions .btn{flex:1}.head h1{font-size:20px}}
 </style>
 </head>
@@ -32,6 +38,7 @@
   <div class="actions" style="margin-top:10px">
     <button class="btn btn-primary" onclick="toggleAdd()">＋ إضافة صنف جديد</button>
     <button class="btn btn-secondary" onclick="load()">↻ تحديث</button>
+    <button class="btn btn-secondary" onclick="syncNow()">🔄 مزامنة الآن</button>
   </div>
 
   <div id="addBox" class="add-box">
@@ -41,13 +48,13 @@
       <div class="field"><label>السعر *</label><input id="newPrice" type="number" min="0" step="0.01" placeholder="0"></div>
       <div class="actions"><button id="addBtn" class="btn btn-primary" onclick="addProduct()">إضافة</button><button class="btn btn-secondary" onclick="toggleAdd(false)">إلغاء</button></div>
     </div>
-    <div class="hint">الصورة لا تُحفظ مركزيًا؛ صور المنتجات تظل محلية على كل جهاز كما اتفقنا.</div>
+    <div class="hint">من هنا يمكنك رفع صورة مركزية للصنف. بعد رفعها وحفظها في قاعدة البيانات ستظهر تلقائيًا على الأجهزة المتصلة.</div>
   </div>
 </section>
 
 <section class="card">
   <div class="table-wrap">
-    <div class="row headrow"><div>الكود</div><div>اسم الصنف</div><div>السعر</div><div>الإجراءات</div></div>
+    <div class="row headrow"><div>الكود</div><div>الصورة</div><div>اسم الصنف</div><div>السعر</div><div>الإجراءات</div></div>
     <div id="list"></div>
   </div>
   <div class="hint"><span class="danger-note">تنبيه:</span> هذه الصفحة بدون كلمة مرور؛ أي شخص يحصل على الرابط يستطيع تعديل أو إضافة أو حذف الأصناف.</div>
@@ -66,7 +73,7 @@ function setStatus(t,ok=true){const s=document.getElementById("status");s.textCo
 
 async function load(){
  setStatus("جاري التحميل...",true);
- const {data,error}=await sb.from("products").select("id,code,name,price,updated_at").order("code");
+ const {data,error}=await sb.from("products").select("id,code,name,price,image_url,updated_at").order("code");
  if(error){setStatus("خطأ في التحميل",false);document.getElementById("list").innerHTML='<div class="empty">تعذر تحميل الأصناف.<br>'+esc(error.message)+'</div>';console.error(error);return}
  products=data||[];setStatus(products.length+" صنف — متصل");render();
 }
@@ -76,14 +83,89 @@ function render(){
  const list=products.filter(p=>(p.code+" "+p.name).toLowerCase().includes(q));
  document.getElementById("list").innerHTML=list.length?list.map(p=>`<div class="row" id="r-${p.id}">
  <div class="code">${esc(p.code)}</div>
+ <div>${p.image_url ? '<img class="thumb" src="'+esc(p.image_url)+'?v='+Date.now()+'" alt="">' : '<div class="no-thumb">📦</div>'}</div>
  <div><input id="n-${p.id}" value="${esc(p.name)}"></div>
  <div><input id="p-${p.id}" class="price" type="number" min="0" step="0.01" value="${Number(p.price??0)}"></div>
  <div class="row-actions">
    <button class="save" onclick="saveProduct(${p.id})">حفظ</button>
+   <label class="file-label">📷 رفع صورة<input type="file" accept="image/*" onchange="uploadProductImage(${p.id}, this.files[0])"></label>
+   ${p.image_url ? '<button class="delete" onclick="removeProductImage('+p.id+')">إزالة الصورة</button>' : ''}
    <button class="delete" onclick="deleteProduct(${p.id})">حذف</button>
    <span class="msg" id="m-${p.id}"></span>
+   <span class="image-msg" id="im-${p.id}"></span>
  </div>
  </div>`).join(""):'<div class="empty">لا توجد نتائج.</div>';
+}
+
+function syncNow(){ load(); }
+
+function compressImage(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        const max=900;
+        const scale=Math.min(1,max/Math.max(img.width,img.height));
+        const canvas=document.createElement("canvas");
+        canvas.width=Math.max(1,Math.round(img.width*scale));
+        canvas.height=Math.max(1,Math.round(img.height*scale));
+        const ctx=canvas.getContext("2d");
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+        canvas.toBlob(blob=>blob?resolve(blob):reject(new Error("تعذر ضغط الصورة")),"image/jpeg",0.86);
+      };
+      img.onerror=()=>reject(new Error("تعذر قراءة الصورة"));
+      img.src=e.target.result;
+    };
+    reader.onerror=()=>reject(new Error("تعذر قراءة الملف"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadProductImage(id,file){
+  if(!file)return;
+  const p=products.find(x=>x.id===id);
+  if(!p)return;
+  const msg=document.getElementById("im-"+id);
+  if(msg)msg.textContent="جاري الرفع...";
+  try{
+    const blob=await compressImage(file);
+    const path="central/"+encodeURIComponent(p.code)+".jpg";
+    const {error:uploadError}=await sb.storage.from("product-images").upload(path,blob,{upsert:true,contentType:"image/jpeg",cacheControl:"3600"});
+    if(uploadError)throw uploadError;
+    const {data:urlData}=sb.storage.from("product-images").getPublicUrl(path);
+    const image_url=(urlData?.publicUrl||"")+"?v="+Date.now();
+    const {data,error}=await sb.from("products").update({image_url}).eq("id",id).select("id,code,name,price,image_url,updated_at").single();
+    if(error)throw error;
+    const i=products.findIndex(x=>x.id===id);
+    if(i>=0)products[i]=data;
+    render();
+    setStatus("تم رفع الصورة ومزامنتها");
+    if(msg)msg.textContent="تمت المزامنة";
+  }catch(err){
+    console.error(err);
+    if(msg)msg.textContent="فشل الرفع";
+    alert("تعذر رفع الصورة ومزامنتها: "+(err.message||err));
+  }
+}
+
+async function removeProductImage(id){
+  const p=products.find(x=>x.id===id);
+  if(!p)return;
+  if(!confirm("إزالة الصورة المركزية لهذا الصنف؟"))return;
+  try{
+    const path="central/"+encodeURIComponent(p.code)+".jpg";
+    const {error:storageError}=await sb.storage.from("product-images").remove([path]);
+    if(storageError)console.warn("Storage remove:",storageError);
+    const {data,error}=await sb.from("products").update({image_url:null}).eq("id",id).select("id,code,name,price,image_url,updated_at").single();
+    if(error)throw error;
+    const i=products.findIndex(x=>x.id===id);
+    if(i>=0)products[i]=data;
+    render();
+    setStatus("تمت إزالة الصورة ومزامنة التعديل");
+  }catch(err){
+    alert("تعذر إزالة الصورة: "+(err.message||err));
+  }
 }
 
 async function saveProduct(id){
