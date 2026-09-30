@@ -926,7 +926,7 @@ async function loadProductsFromSupabase(){
 function applyLocalImagesToProducts(){
   DB_PRODUCTS.forEach(p => {
     // الصورة المحلية على الجهاز لها أولوية، وإن لم توجد نستخدم الصورة المركزية.
-    p.image = LOCAL_IMAGES[p.code] || p.image_url || "";
+    p.image = p.image_url || LOCAL_IMAGES[p.code] || "";
   });
 }
 
@@ -972,7 +972,7 @@ function getProducts(){
       ...p,
       category: p.category || inferCategory(p.code),
       // صورة الجهاز إن وُجدت تتغلب على الصورة المركزية، وإلا تظهر الصورة المشتركة.
-      image: LOCAL_IMAGES[p.code] || p.image_url || ""
+      image: p.image_url || LOCAL_IMAGES[p.code] || ""
     }));
   }
 
