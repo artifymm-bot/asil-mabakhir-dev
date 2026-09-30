@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>\n<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --navy:#1c2b4a;
@@ -873,17 +874,195 @@ function categoryOptionsHTML(selectedCode){
    ========================================================= */
 let PRODUCT_OVERRIDES = {};
 let CUSTOM_PRODUCTS = [];
+let DB_PRODUCTS = [];
+let productsLoadedFromSupabase = false;
+let supabaseSyncChannel = null;
+
+const SUPABASE_URL = "https://shojdoigxhoybwtpkvam.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_M8ayaSDZOZ3MIrbHqyD-0Q_mY6kHSPP";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+function inferCategory(code){
+  const p = PRODUCTS.find(x => x.code === code);
+  return p?.category || "أصناف أخرى";
+}
+
+function getProductsSource(){
+  if(productsLoadedFromSupabase && DB_PRODUCTS.length) return DB_PRODUCTS;
+  return PRODUCTS;
+}
+
+async function loadProductsFromSupabase(){
+  const { data, error } = await supabaseClient
+    .from("products")
+    .select("code,name,price,image_url,updated_at")
+    .order("code", { ascending: true });
+
+  if(error){
+    console.warn("Supabase products load error:", error);
+    return false;
+  }
+
+  DB_PRODUCTS = Array.isArray(data) ? data.map(p => ({
+    code: p.code,
+    name: p.name,
+    price: Number(p.price) || 0,
+    category: inferCategory(p.code),
+    image_url: p.image_url || "",
+    image: ""
+  })) : [];
+
+  productsLoadedFromSupabase = true;
+  applyLocalImagesToProducts();
+  populateProductPicker();
+  refreshCurrentItemsFromCatalog();
+  renderItems();
+  renderInvoice();
+  return true;
+}
+
+function applyLocalImagesToProducts(){
+  DB_PRODUCTS.forEach(p => {
+    p.image = LOCAL_IMAGES[p.code] || "";
+  });
+}
+
+function refreshCurrentItemsFromCatalog(){
+  const products = getProducts();
+  items.forEach(item => {
+    if(!item.code) return;
+    const p = products.find(x => x.code === item.code);
+    if(!p) return;
+    item.name = p.name;
+    item.price = p.price;
+    item.image = p.image || "";
+  });
+}
+
+function setupSupabaseRealtime(){
+  if(supabaseSyncChannel) return;
+
+  supabaseSyncChannel = supabaseClient
+    .channel("products-sync")
+    .on("postgres_changes", {
+      event: "*",
+      schema: "public",
+      table: "products"
+    }, async () => {
+      await loadProductsFromSupabase();
+    })
+    .subscribe((status) => {
+      console.log("Supabase products realtime:", status);
+    });
+}
+
+function startProductSync(){
+  loadProductsFromSupabase().then(ok => {
+    if(ok) setupSupabaseRealtime();
+  });
+}
 
 function getProducts(){
-  const base = PRODUCTS.map(p => {
+  const source = getProductsSource();
+  if(productsLoadedFromSupabase){
+    return source.map(p => ({
+      ...p,
+      category: p.category || inferCategory(p.code),
+      image: LOCAL_IMAGES[p.code] || ""
+    }));
+  }
+
+  const base = source.map(p => {
     const override = PRODUCT_OVERRIDES[p.code] || {};
     return {...p, ...override, image: override.image || p.image || ""};
   });
-  return base.concat(CUSTOM_PRODUCTS.map(p => ({...p})));
+  return base.concat(CUSTOM_PRODUCTS.map(p => ({...p, image: LOCAL_IMAGES[p.code] || p.image || ""})));
 }
 
 function productStorageKey(){
   return "asil_invoice_product_catalog_v1";
+}
+
+const IMAGE_DB_NAME = "asil_invoice_images_v1";
+const IMAGE_STORE_NAME = "product_images";
+
+function openImageDB(){
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IMAGE_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if(!db.objectStoreNames.contains(IMAGE_STORE_NAME)){
+        db.createObjectStore(IMAGE_STORE_NAME);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function loadLocalImages(){
+  try{
+    const db = await openImageDB();
+    LOCAL_IMAGES = await new Promise((resolve, reject) => {
+      const tx = db.transaction(IMAGE_STORE_NAME, "readonly");
+      const store = tx.objectStore(IMAGE_STORE_NAME);
+      const req = store.getAll();
+      const keysReq = store.getAllKeys();
+      req.onsuccess = () => {
+        const values = req.result || [];
+        keysReq.onsuccess = () => {
+          const keys = keysReq.result || [];
+          const map = {};
+          keys.forEach((key, i) => { map[String(key)] = values[i] || ""; });
+          resolve(map);
+        };
+        keysReq.onerror = () => reject(keysReq.error);
+      };
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+  }catch(err){
+    console.warn("تعذر تحميل صور المنتجات المحلية:", err);
+    LOCAL_IMAGES = {};
+  }
+}
+
+async function saveLocalImage(code, dataUrl){
+  const db = await openImageDB();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(IMAGE_STORE_NAME, "readwrite");
+    tx.objectStore(IMAGE_STORE_NAME).put(dataUrl, String(code));
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+  LOCAL_IMAGES[String(code)] = dataUrl || "";
+}
+
+async function deleteLocalImage(code){
+  const db = await openImageDB();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(IMAGE_STORE_NAME, "readwrite");
+    tx.objectStore(IMAGE_STORE_NAME).delete(String(code));
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+  delete LOCAL_IMAGES[String(code)];
+}
+
+function migrateLegacyImagesToIndexedDB(){
+  const legacy = {...PRODUCT_OVERRIDES};
+  const entries = Object.entries(legacy);
+  return Promise.all(entries.map(async ([code, value]) => {
+    if(value?.image && !LOCAL_IMAGES[code]){
+      await saveLocalImage(code, value.image);
+    }
+    if(value?.image){
+      PRODUCT_OVERRIDES[code] = {...value};
+      delete PRODUCT_OVERRIDES[code].image;
+    }
+  })).then(() => saveProductCatalog());
 }
 
 function loadProductCatalog(){
@@ -942,6 +1121,7 @@ function productOptionsHTML(selectedCode="", multiple=false){
 
 let selectedProductCodes = new Set();
 let managedProductImage = "";
+let LOCAL_IMAGES = {};
 
 function renderProductPickerGrid(){
   const grid = document.getElementById("productPickerGrid");
@@ -992,10 +1172,12 @@ function showManagedImage(src){
   if(src){ img.src = src; img.style.display="block"; ph.style.display="none"; }
   else { img.removeAttribute("src"); img.style.display="none"; ph.style.display="flex"; }
 }
-function removeManagedImage(){
+async function removeManagedImage(){
   managedProductImage = "";
   const input = document.getElementById("manageProductImage");
   if(input) input.value = "";
+  const code = document.getElementById("manageProductCode")?.value?.trim();
+  if(code) await deleteLocalImage(code);
   showManagedImage("");
 }
 function populateProductPicker(){
@@ -1048,7 +1230,7 @@ function prepareEditProduct(){
   const input=document.getElementById("manageProductImage"); if(input) input.value="";
   showManagedImage(managedProductImage);
 }
-function saveManagedProduct(){
+async function saveManagedProduct(){
   const code=document.getElementById("manageProductCode").value.trim();
   const name=document.getElementById("manageProductName").value.trim();
   const price=Math.max(0,parseFloat(document.getElementById("manageProductPrice").value)||0);
@@ -1056,16 +1238,43 @@ function saveManagedProduct(){
   if(!code||!name){alert("اكتب كود الصنف واسم الصنف.");return;}
   const customIndex=CUSTOM_PRODUCTS.findIndex(p=>p.code===code);
   const defaultProduct=PRODUCTS.find(p=>p.code===code);
-  if(customIndex>=0){
-    CUSTOM_PRODUCTS[customIndex]={code,name,price,category,image:managedProductImage||""};
+  if(productsLoadedFromSupabase){
+    const { error } = await supabaseClient
+      .from("products")
+      .update({name, price, updated_at:new Date().toISOString()})
+      .eq("code", code);
+
+    if(error){
+      console.error("Supabase product update error:", error);
+      alert("تعذر حفظ الاسم والسعر على قاعدة البيانات. لم يتم تغيير البيانات المشتركة.");
+      return;
+    }
+  }else if(customIndex>=0){
+    CUSTOM_PRODUCTS[customIndex]={code,name,price,category};
   }else if(defaultProduct){
-    PRODUCT_OVERRIDES[code]={...(PRODUCT_OVERRIDES[code]||{}),name,price,category,image:managedProductImage||""};
+    PRODUCT_OVERRIDES[code]={...(PRODUCT_OVERRIDES[code]||{}),name,price,category};
   }else{
     if(getProducts().some(p=>p.code===code)){alert("كود الصنف موجود بالفعل.");return;}
-    CUSTOM_PRODUCTS.push({code,name,price,category,image:managedProductImage||""});
+    CUSTOM_PRODUCTS.push({code,name,price,category});
   }
-  saveProductCatalog(); populateProductPicker(); renderItems(); renderInvoice(); cancelProductManagement();
-  alert("تم حفظ بيانات الصنف والصورة بنجاح.");
+
+  if(managedProductImage){
+    await saveLocalImage(code, managedProductImage);
+  }else{
+    await deleteLocalImage(code);
+  }
+
+  if(productsLoadedFromSupabase){
+    await loadProductsFromSupabase();
+  }else{
+    saveProductCatalog();
+    populateProductPicker();
+    renderItems();
+    renderInvoice();
+  }
+
+  cancelProductManagement();
+  alert("تم حفظ بيانات الصنف. الاسم والسعر متزامنان، والصورة محفوظة على هذا الجهاز.");
 }
 function cancelProductManagement(){document.getElementById("productManageArea").style.display="none";managedProductImage="";}
 /* =========================================================
@@ -1554,8 +1763,10 @@ async function shareWhatsApp(){
 /* =========================================================
    بدء التشغيل
    ========================================================= */
-function init(){
+async function init(){
   loadProductCatalog();
+  await loadLocalImages();
+  await migrateLegacyImagesToIndexedDB();
   generateInvoiceNumber();
   document.getElementById("invoiceNoDisplay").textContent = invoiceNumber;
   document.getElementById("dateDisplay").textContent = formatDate();
@@ -1565,6 +1776,7 @@ function init(){
 
   renderItems();
   renderInvoice();
+  startProductSync();
 }
 
 document.addEventListener("DOMContentLoaded", init);
