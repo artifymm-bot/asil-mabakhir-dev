@@ -1099,15 +1099,56 @@ function escapeHtml(value){
     .replace(/'/g,"&#039;");
 }
 
-function productOptionsHTML(selectedCode="", multiple=false){
-  const products = getProducts();
-  const cats = {};
-  products.forEach(p => {
-    if(!cats[p.category]) cats[p.category] = [];
-    cats[p.category].push(p);
+function getProductGroup(product){
+  const p = product || {};
+  const text = ((p.name || "") + " " + (p.category || "")).toLowerCase();
+  if(text.includes("مبخرة") || text.includes("مباخر") || text.includes("بخور")){
+    return "المباخر";
+  }
+  if(text.includes("فواحة") || text.includes("فواحات") || text.includes("جهاز تعطير") || text.includes("تعطير المنزل")){
+    return "الفواحات";
+  }
+  if(text.includes("فريسكا")){
+    return "فريسكا";
+  }
+  if((p.category || "").includes("مباخر")) return "المباخر";
+  if((p.category || "").includes("فواحات")) return "الفواحات";
+  return "أصناف أخرى";
+}
+
+function productGroupRank(group){
+  return { "المباخر":1, "الفواحات":2, "فريسكا":3, "أصناف أخرى":4 }[group] || 99;
+}
+
+function sortProductsForDisplay(products){
+  return [...products].sort((a,b)=>{
+    const groupDiff = productGroupRank(getProductGroup(a)) - productGroupRank(getProductGroup(b));
+    if(groupDiff) return groupDiff;
+    const priceDiff = (Number(a.price)||0) - (Number(b.price)||0);
+    if(priceDiff) return priceDiff;
+    return String(a.code||"").localeCompare(String(b.code||""),"ar",{numeric:true});
   });
-  return Object.keys(cats).map(cat => {
-    const opts = cats[cat].map(p => {
+}
+
+function sortItemsForDisplay(itemsList){
+  return [...itemsList].sort((a,b)=>{
+    const pa = getProducts().find(p=>p.code===a.code) || a;
+    const pb = getProducts().find(p=>p.code===b.code) || b;
+    const groupDiff = productGroupRank(getProductGroup(pa)) - productGroupRank(getProductGroup(pb));
+    if(groupDiff) return groupDiff;
+    const priceDiff = (Number(a.price)||0) - (Number(b.price)||0);
+    if(priceDiff) return priceDiff;
+    return String(a.code||"").localeCompare(String(b.code||""),"ar",{numeric:true});
+  });
+}
+
+function productOptionsHTML(selectedCode="", multiple=false){
+  const products = sortProductsForDisplay(getProducts());
+  const groups = ["المباخر","الفواحات","فريسكا","أصناف أخرى"];
+  return groups.map(group => {
+    const groupProducts = products.filter(p => getProductGroup(p) === group);
+    if(!groupProducts.length) return "";
+    const opts = groupProducts.map(p => {
       const selected = multiple
         ? ""
         : (p.code === selectedCode ? " selected" : "");
@@ -1115,7 +1156,7 @@ function productOptionsHTML(selectedCode="", multiple=false){
         escapeHtml(p.code) + ' — ' + escapeHtml(p.name) + ' — ' + escapeHtml(formatMoney(p.price)) +
         '</option>';
     }).join("");
-    return '<optgroup label="' + escapeHtml(cat) + '">' + opts + '</optgroup>';
+    return '<optgroup label="' + escapeHtml(group) + '">' + opts + '</optgroup>';
   }).join("");
 }
 
@@ -1126,7 +1167,7 @@ let LOCAL_IMAGES = {};
 function renderProductPickerGrid(){
   const grid = document.getElementById("productPickerGrid");
   if(!grid) return;
-  const products = getProducts();
+  const products = sortProductsForDisplay(getProducts());
   grid.innerHTML = products.map(p => {
     const selected = selectedProductCodes.has(p.code);
     const image = p.image ? '<img class="pc-img" src="' + escapeHtml(p.image) + '" alt="">' : '<div class="pc-noimg">📦</div>';
@@ -1468,12 +1509,13 @@ function itemCardHTML(item){
 function renderItems(){
   const container = document.getElementById("itemsContainer");
   const emptyState = document.getElementById("emptyState");
+  const displayItems = sortItemsForDisplay(items);
   if(items.length === 0){
     container.innerHTML = "";
     emptyState.style.display = "block";
   } else {
     emptyState.style.display = "none";
-    container.innerHTML = items.map(itemCardHTML).join("");
+    container.innerHTML = displayItems.map(itemCardHTML).join("");
   }
   renderTotals();
 }
@@ -1484,7 +1526,7 @@ function renderInvoice(){
   document.getElementById("pDate").textContent = formatDate();
 
   items.forEach(i => { if(i.code && !i.image){ const p=getProducts().find(p=>p.code===i.code); if(p) i.image=p.image||""; } });
-  const rows = items.filter(i => i.code);
+  const rows = sortItemsForDisplay(items.filter(i => i.code));
   const rowsWrap = document.getElementById("pInvoiceRows");
   if(rows.length === 0){
     rowsWrap.innerHTML = '<tr><td class="pv-empty" colspan="8">لا توجد أصناف مضافة بعد</td></tr>';
