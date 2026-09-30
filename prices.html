@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>الأصيل — تعديل الأسعار والأصناف</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--navy:#1c2b4a;--orange:#c9822f;--bg:#f6f4ef;--border:#e6ddca;--ink:#241f1a;--ok:#238b57;--danger:#b3452f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Cairo,Tahoma,sans-serif}.wrap{max-width:1000px;margin:auto;padding:18px 14px 50px}
+.head{background:linear-gradient(135deg,#1c2b4a,#233658);color:#fff;border-radius:16px;padding:22px;margin-bottom:16px}.head h1{margin:0 0 5px;font-size:23px}.head p{margin:0;color:#d9e0ee;font-size:13px}
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:15px;margin-bottom:15px}
+.toolbar{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}.search{width:100%;font:inherit;padding:11px 13px;border:1px solid var(--border);border-radius:10px}.status{font-size:12px;font-weight:700;color:var(--ok);white-space:nowrap}
+.table-wrap{overflow:auto}.row{display:grid;grid-template-columns:95px minmax(180px,1fr) 140px 90px;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid #eee8dc}.row.headrow{font-weight:800;color:var(--navy);padding-top:0}.code{font-weight:800;color:var(--navy)}input{font:inherit;border:1px solid var(--border);border-radius:8px;padding:8px 9px;width:100%;background:#fff}.price{font-weight:800}.save{background:var(--orange);color:#fff;border:0;border-radius:8px;padding:8px 10px;font:inherit;font-weight:800;cursor:pointer}.save:disabled{opacity:.45;cursor:not-allowed}.msg{font-size:12px;color:var(--ok);font-weight:700}.empty{text-align:center;padding:25px;color:#79706e}
+@media(max-width:650px){.toolbar{grid-template-columns:1fr}.row{grid-template-columns:75px minmax(160px,1fr) 105px 72px;font-size:12px}.save{padding:7px 6px;font-size:12px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="head"><h1>الأصيل — تعديل الأصناف والأسعار</h1><p>أي تعديل هنا يُحفظ مركزيًا ويظهر تلقائيًا في التطبيق على الأجهزة المتصلة.</p></header>
+<section class="card"><div class="toolbar"><input id="search" class="search" placeholder="ابحث بالكود أو اسم الصنف..." oninput="render()"><div id="status" class="status">جاري التحميل...</div></div></section>
+<section class="card"><div class="table-wrap"><div class="row headrow"><div>الكود</div><div>اسم الصنف</div><div>السعر</div><div>حفظ</div></div><div id="list"></div></div></section>
+</div>
+<script>
+const SUPABASE_URL="https://shojdoigxhoybwtpkvam.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY="sb_publishable_M8ayaSDZOZ3MIrbHqyD-0Q_mY6kHSPP";
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+let products=[], saving=new Set();
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
+async function load(){
+ const {data,error}=await sb.from("products").select("id,code,name,price").order("code");
+ if(error){document.getElementById("status").textContent="خطأ في التحميل";document.getElementById("list").innerHTML='<div class="empty">تعذر تحميل الأصناف.</div>';console.error(error);return}
+ products=data||[];document.getElementById("status").textContent=products.length+" صنف — متصل";render();
+}
+function render(){
+ const q=document.getElementById("search").value.trim().toLowerCase();
+ const list=products.filter(p=>(p.code+" "+p.name).toLowerCase().includes(q));
+ document.getElementById("list").innerHTML=list.length?list.map(p=>`<div class="row" id="r-${p.id}">
+ <div class="code">${esc(p.code)}</div>
+ <div><input id="n-${p.id}" value="${esc(p.name)}"></div>
+ <div><input id="p-${p.id}" class="price" type="number" min="0" step="0.01" value="${Number(p.price??0)}"></div>
+ <div><button class="save" onclick="saveProduct(${p.id})">حفظ</button><div class="msg" id="m-${p.id}"></div></div>
+ </div>`).join(""):'<div class="empty">لا توجد نتائج.</div>';
+}
+async function saveProduct(id){
+ if(saving.has(id))return;saving.add(id);
+ const btn=document.querySelector("#r-"+id+" .save");if(btn)btn.disabled=true;
+ const name=document.getElementById("n-"+id).value.trim();
+ const price=Number(document.getElementById("p-"+id).value);
+ const msg=document.getElementById("m-"+id);
+ if(!name||!Number.isFinite(price)||price<0){if(msg)msg.textContent="بيانات غير صحيحة";saving.delete(id);if(btn)btn.disabled=false;return}
+ const {data,error}=await sb.from("products").update({name,price}).eq("id",id).select("id,code,name,price").single();
+ if(error){console.error(error);if(msg)msg.textContent="فشل الحفظ";alert("لم يتم الحفظ: "+error.message)}
+ else{const i=products.findIndex(p=>p.id===id);if(i>=0)products[i]=data;if(msg){msg.textContent="تم";setTimeout(()=>msg.textContent="",1400)}document.getElementById("status").textContent="تم التحديث — "+new Date().toLocaleTimeString("ar-EG")}
+ saving.delete(id);if(btn)btn.disabled=false;
+}
+function realtime(){
+ sb.channel("price-editor-sync").on("postgres_changes",{event:"*",schema:"public",table:"products"},payload=>{
+   if(payload.eventType==="UPDATE"&&payload.new){
+     const i=products.findIndex(p=>p.id===payload.new.id);
+     if(i>=0){products[i]={...products[i],...payload.new};render()}
+   } else load();
+ }).subscribe();
+}
+load().then(realtime);
+</script>
+</body></html>
