@@ -1004,7 +1004,7 @@ function openImageDB(){
   });
 }
 
-async async function loadLocalImages(){
+async function loadLocalImages(){
   try{
     const db = await openImageDB();
     LOCAL_IMAGES = await new Promise((resolve, reject) => {
@@ -1217,7 +1217,7 @@ function showManagedImage(src){
   if(src){ img.src = src; img.style.display="block"; ph.style.display="none"; }
   else { img.removeAttribute("src"); img.style.display="none"; ph.style.display="flex"; }
 }
-async async function removeManagedImage(){
+async function removeManagedImage(){
   managedProductImage = "";
   const input = document.getElementById("manageProductImage");
   if(input) input.value = "";
