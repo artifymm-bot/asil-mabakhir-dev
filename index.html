@@ -277,6 +277,12 @@
     font-size: 16px;
   }
 
+  .whatsapp-export-mode{width:1200px!important;max-width:1200px!important;padding:24px!important}
+  .whatsapp-export-mode .inv-company{font-size:22px}
+  .whatsapp-export-mode .inv-title{font-size:18px}
+  .whatsapp-export-mode .inv-meta{font-size:14px}
+  .whatsapp-export-mode table.inv-table{font-size:13px}
+  .whatsapp-export-mode table.inv-table thead th,.whatsapp-export-mode table.inv-table tbody td{padding:7px 5px}
   /* Invoice preview — mobile-first receipt */
   #invoicePreview{
     background:#fff;
@@ -1768,8 +1774,12 @@ async function shareWhatsApp(){
     // ثم نحول الصورة نفسها إلى PDF عبر jsPDF. بهذه الطريقة لا يتم
     // الاعتماد على html2canvas لالتقاط نسخة مخفية من الفاتورة، وهو
     // سبب ظهور PDF أبيض في بعض المتصفحات.
+    // نسخة واتساب تكون أعرض لتقليل طول الفاتورة وجعلها أوضح عند فتحها على الهاتف.
+    const invoicePreview = document.getElementById("invoicePreview");
+    invoicePreview.classList.add("whatsapp-export-mode");
     const imageBlob = await new Promise((resolve, reject) => {
       exportInvoiceImage((blob) => {
+        invoicePreview.classList.remove("whatsapp-export-mode");
         if(blob) resolve(blob);
         else reject(new Error("تعذر إنشاء صورة الفاتورة"));
       });
