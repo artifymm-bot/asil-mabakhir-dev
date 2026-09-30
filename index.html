@@ -277,12 +277,39 @@
     font-size: 16px;
   }
 
-  .whatsapp-export-mode{width:1200px!important;max-width:1200px!important;padding:24px!important}
-  .whatsapp-export-mode .inv-company{font-size:22px}
-  .whatsapp-export-mode .inv-title{font-size:18px}
-  .whatsapp-export-mode .inv-meta{font-size:14px}
-  .whatsapp-export-mode table.inv-table{font-size:13px}
-  .whatsapp-export-mode table.inv-table thead th,.whatsapp-export-mode table.inv-table tbody td{padding:7px 5px}
+  /* نسخة واتساب: إجبارية أفقية فعلية، لأن #invoicePreview كان يتغلب على width السابقة */
+  #invoicePreview.whatsapp-export-mode{
+    width:1400px!important;
+    max-width:1400px!important;
+    padding:22px!important;
+    overflow:visible!important;
+  }
+  #invoicePreview.whatsapp-export-mode .inv-company{font-size:24px}
+  #invoicePreview.whatsapp-export-mode .inv-title{font-size:19px}
+  #invoicePreview.whatsapp-export-mode .inv-meta{font-size:14px}
+  #invoicePreview.whatsapp-export-mode table.inv-table{font-size:13px}
+  #invoicePreview.whatsapp-export-mode table.inv-table thead th,
+  #invoicePreview.whatsapp-export-mode table.inv-table tbody td{padding:6px 5px}
+  #invoicePreview.whatsapp-export-mode table.inv-table th:nth-child(1),
+  #invoicePreview.whatsapp-export-mode table.inv-table td:nth-child(1){width:5%}
+  #invoicePreview.whatsapp-export-mode table.inv-table th:nth-child(2),
+  #invoicePreview.whatsapp-export-mode table.inv-table td:nth-child(2){width:9%}
+  #invoicePreview.whatsapp-export-mode table.inv-table th:nth-child(3),
+  #invoicePreview.whatsapp-export-mode table.inv-table td:nth-child(3){width:10%}
+  #invoicePreview.whatsapp-export-mode table.inv-table th:nth-child(4),
+  #invoicePreview.whatsapp-export-mode table.inv-table td:nth-child(4){width:31%}
+  #invoicePreview.whatsapp-export-mode table.inv-table th:nth-child(5),
+  #invoicePreview.whatsapp-export-mode table.inv-table td:nth-child(5){width:8%}
+  #invoicePreview.whatsapp-export-mode table.inv-table th:nth-child(6),
+  #invoicePreview.whatsapp-export-mode table.inv-table td:nth-child(6){width:11%}
+  #invoicePreview.whatsapp-export-mode table.inv-table th:nth-child(7),
+  #invoicePreview.whatsapp-export-mode table.inv-table td:nth-child(7){width:12%}
+  #invoicePreview.whatsapp-export-mode table.inv-table th:nth-child(8),
+  #invoicePreview.whatsapp-export-mode table.inv-table td:nth-child(8){width:14%}
+  #invoicePreview.whatsapp-export-mode #pTotalsBlock .totals-row{font-size:13px;padding:5px 0}
+  #invoicePreview.whatsapp-export-mode #pTotalsBlock .grand-row{font-size:17px;padding-top:7px}
+  #invoicePreview.whatsapp-export-mode #pAmountWords{font-size:12px;padding:6px 9px}
+  #invoicePreview.whatsapp-export-mode #pNotesBlock{font-size:12px;margin-top:10px;padding-top:8px}
   /* Invoice preview — mobile-first receipt */
   #invoicePreview{
     background:#fff;
