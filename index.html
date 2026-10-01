@@ -470,6 +470,32 @@
   .contact-modal-card{width:min(440px,100%);background:#fff;border-radius:16px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
   .contact-modal-actions{display:flex;gap:8px;margin-top:15px}
 
+  /* ================= الطلبات والتحضير ================= */
+  .orders-toggle-row{display:flex;justify-content:flex-start;gap:10px;flex-wrap:wrap;margin:0 0 14px}
+  .btn-orders{background:#7a4a22;color:#fff}
+  .orders-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .orders-filter{padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-family:inherit;background:#fff}
+  .orders-list{display:flex;flex-direction:column;gap:10px}
+  .order-row{border:1px solid var(--border);border-radius:12px;padding:13px;background:#fdfcf9}
+  .order-row-main{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+  .order-number{font-weight:800;color:var(--navy);font-size:16px}
+  .order-client{font-weight:700;margin-top:4px}
+  .order-meta{color:var(--muted-2);font-size:12.5px;margin-top:5px}
+  .order-status{font-weight:800;padding:5px 9px;border-radius:8px;font-size:12px}
+  .status-new{background:#f3efe4;color:var(--navy)}
+  .status-preparing{background:#fff2e0;color:#9a5a16}
+  .status-completed{background:#e8f6ea;color:#28752e}
+  .status-invoiced{background:#e8eef8;color:#234b80}
+  .order-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+  .order-action-primary{background:var(--navy);color:#fff}
+  .order-action-complete{background:#2f7d32;color:#fff}
+  .order-action-invoice{background:var(--orange);color:#fff}
+  .order-action-delete{background:var(--danger-bg);color:var(--danger);border:1px solid rgba(179,69,47,.25)}
+  .order-items-preview{margin-top:10px;padding-top:9px;border-top:1px dashed var(--border);display:flex;flex-direction:column;gap:5px}
+  .order-item-line{display:flex;justify-content:space-between;gap:8px;font-size:13px}
+  .order-item-line b{color:var(--navy)}
+  .order-create-note{margin:0 0 12px;color:var(--muted-2);font-size:13px;font-weight:600}
+
 </style>
 </head>
 <body>
@@ -499,6 +525,28 @@
     <div id="invoiceHistoryList" class="history-list">
       <div class="history-loading">جارٍ تحميل الفواتير...</div>
     </div>
+  </section>
+
+  <div class="orders-toggle-row">
+    <button type="button" class="btn-orders" onclick="toggleOrdersPanel()">📦 الطلبات والتحضير</button>
+  </div>
+
+  <section class="card" id="ordersCard" style="display:none;">
+    <div class="toolbar-row">
+      <h2 style="margin:0;">📦 الطلبات والتحضير</h2>
+      <button type="button" class="btn-history" onclick="loadOrders()">↻ تحديث</button>
+    </div>
+    <p class="order-create-note">لإنشاء طلبية: جهّز الأصناف في الفاتورة الحالية ثم اضغط «إرسال للتحضير». المحضر يرى اسم الصنف والكود والكمية فقط، بدون الأسعار.</p>
+    <div class="orders-toolbar">
+      <select id="ordersFilter" class="orders-filter" onchange="renderOrders()">
+        <option value="all">كل الطلبات</option>
+        <option value="new">جديدة</option>
+        <option value="preparing">جاري التحضير</option>
+        <option value="completed">تم التحضير</option>
+        <option value="invoiced">تم تحويلها لفاتورة</option>
+      </select>
+    </div>
+    <div id="ordersList" class="orders-list"><div class="history-loading">جارٍ تحميل الطلبات...</div></div>
   </section>
 
   <section class="card">
@@ -570,6 +618,7 @@
 
     <div class="actions-row">
       <button class="btn-save" onclick="saveInvoiceManually()">💾 حفظ الفاتورة</button>
+      <button class="btn-orders" onclick="createOrderFromCurrentInvoice()">📦 إرسال للتحضير</button>
       <button class="btn-clear" onclick="clearInvoice()">مسح الكل</button>
       <button class="btn-pdf" onclick="exportPDF()">📄 تصدير PDF</button>
       <button class="btn-whatsapp" onclick="shareWhatsApp()">🟢 إرسال إلى واتساب</button>
@@ -972,6 +1021,11 @@ async function saveCurrentInvoiceToSupabase(){
   if(i.error) throw i.error;
 
   updateHistoryCurrent();
+  if(currentOrderId){
+    const orderUpdate=await supabaseClient.from("orders").update({status:"invoiced",invoice_id:invoice.id}).eq("id",currentOrderId);
+    if(orderUpdate.error) console.error("mark order invoiced:",orderUpdate.error);
+    currentOrderId=null;
+  }
   return invoice.id;
 }
 
@@ -1980,6 +2034,210 @@ async function shareWhatsApp(){
   }
 }
 
+
+/* =========================================================
+   الطلبات والتحضير
+   ========================================================= */
+let ordersCache = [];
+let currentOrderId = null;
+let ordersRealtimeChannel = null;
+
+const ORDER_STATUS_LABELS = {
+  new: "جديدة",
+  preparing: "جاري التحضير",
+  completed: "تم التحضير",
+  invoiced: "تم تحويلها لفاتورة"
+};
+
+function formatOrderDate(value){
+  if(!value) return "—";
+  const d=new Date(value);
+  if(Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("ar-EG",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
+}
+
+function orderStatusClass(status){
+  return status==="preparing" ? "status-preparing" :
+         status==="completed" ? "status-completed" :
+         status==="invoiced" ? "status-invoiced" : "status-new";
+}
+
+function toggleOrdersPanel(){
+  const card=document.getElementById("ordersCard");
+  if(!card) return;
+  const opening=getComputedStyle(card).display==="none";
+  card.style.display=opening?"block":"none";
+  if(opening) loadOrders();
+}
+
+function getOrderPayload(){
+  return {
+    client_id: selectedClientId || null,
+    client_name: document.getElementById("clientName")?.value.trim() || "",
+    client_phone: document.getElementById("clientPhone")?.value.trim() || "",
+    notes: document.getElementById("notesInput")?.value.trim() || ""
+  };
+}
+
+async function createOrderFromCurrentInvoice(){
+  const validItems=items.filter(i=>i.code);
+  if(!validItems.length){ alert("أضف صنفًا واحدًا على الأقل قبل إرسال الطلبية للتحضير."); return; }
+  const payload=getOrderPayload();
+  if(!payload.client_name && !confirm("لم تكتب اسم العميل. هل تريد إنشاء الطلبية بدون اسم؟")) return;
+
+  try{
+    const orderNumber="ORD-"+Date.now().toString().slice(-7);
+    const r=await supabaseClient.from("orders").insert(Object.assign({order_number:orderNumber,status:"new"},payload)).select().single();
+    if(r.error) throw r.error;
+
+    const rows=validItems.map((item,index)=>{
+      const product=getProducts().find(p=>p.code===item.code);
+      return {
+        order_id:r.data.id,
+        product_id:product?.id || null,
+        code:item.code || "",
+        name:item.name || product?.name || "",
+        quantity:Number(item.qty)||1,
+        notes:item.notes || "",
+        sort_order:index
+      };
+    });
+    const ir=await supabaseClient.from("order_items").insert(rows);
+    if(ir.error){
+      await supabaseClient.from("orders").delete().eq("id",r.data.id);
+      throw ir.error;
+    }
+    currentOrderId=r.data.id;
+    await loadOrders();
+    document.getElementById("ordersCard").style.display="block";
+    alert("تم إرسال الطلبية "+orderNumber+" للتحضير.");
+  }catch(err){
+    console.error("createOrderFromCurrentInvoice:",err);
+    alert("تعذر إرسال الطلبية للتحضير.");
+  }
+}
+
+async function loadOrders(){
+  const list=document.getElementById("ordersList");
+  if(!list) return;
+  list.innerHTML='<div class="history-loading">جارٍ تحميل الطلبات...</div>';
+  try{
+    const r=await supabaseClient.from("orders")
+      .select("id,order_number,client_name,client_phone,notes,status,completed_at,invoice_id,created_at,updated_at,order_items(id,code,name,quantity,notes,sort_order)")
+      .order("created_at",{ascending:false}).limit(200);
+    if(r.error) throw r.error;
+    ordersCache=r.data||[];
+    renderOrders();
+  }catch(err){
+    console.error("loadOrders:",err);
+    list.innerHTML='<div class="history-empty">تعذر تحميل الطلبات. تأكد من اتصال Supabase.</div>';
+  }
+}
+
+function renderOrders(){
+  const list=document.getElementById("ordersList");
+  if(!list) return;
+  const filter=document.getElementById("ordersFilter")?.value||"all";
+  const rows=ordersCache.filter(o=>filter==="all" || o.status===filter);
+  if(!rows.length){
+    list.innerHTML='<div class="history-empty">لا توجد طلبات في هذه الحالة.</div>';
+    return;
+  }
+
+  list.innerHTML=rows.map(o=>{
+    const sorted=(o.order_items||[]).slice().sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+    const itemsHtml=sorted.map(i=>'<div class="order-item-line"><span><b>'+escapeHtml(i.code||"—")+'</b> — '+escapeHtml(i.name||"—")+'</span><span>× '+escapeHtml(String(i.quantity??1))+'</span></div>').join("");
+    const status=ORDER_STATUS_LABELS[o.status]||o.status;
+    const completed=o.completed_at ? " — خلصت: "+formatOrderDate(o.completed_at) : "";
+    let actions="";
+    if(o.status==="new") actions+='<button type="button" class="order-action-primary" onclick="setOrderStatus(\\''+o.id+'\\',\\'preparing\\')">▶ بدء التحضير</button>';
+    if(o.status==="preparing") actions+='<button type="button" class="order-action-complete" onclick="completeOrder(\\''+o.id+'\\')">✓ تم التحضير</button>';
+    if(o.status==="completed") actions+='<button type="button" class="order-action-invoice" onclick="convertOrderToInvoice(\\''+o.id+'\\')">🧾 تحويل إلى فاتورة</button>';
+    if(o.status!=="invoiced") actions+='<button type="button" class="order-action-delete" onclick="deleteOrder(\\''+o.id+'\\')">حذف</button>';
+    return '<div class="order-row">'+
+      '<div class="order-row-main"><div>'+
+      '<div class="order-number">طلبية '+escapeHtml(o.order_number)+'</div>'+
+      '<div class="order-client">العميل: '+escapeHtml(o.client_name||"بدون اسم")+'</div>'+
+      '<div class="order-meta">'+(o.client_phone ? "رقم العميل: "+escapeHtml(o.client_phone)+" — " : "")+"الحالة: "+escapeHtml(status)+completed+'</div>'+
+      '</div><span class="order-status '+orderStatusClass(o.status)+'">'+escapeHtml(status)+'</span></div>'+
+      '<div class="order-items-preview">'+itemsHtml+'</div>'+
+      '<div class="order-actions">'+actions+'</div></div>';
+  }).join("");
+}
+
+async function setOrderStatus(id,status){
+  try{
+    const r=await supabaseClient.from("orders").update({
+      status:status,
+      completed_at:status==="completed" ? new Date().toISOString() : null
+    }).eq("id",id);
+    if(r.error) throw r.error;
+    await loadOrders();
+  }catch(err){
+    console.error("setOrderStatus:",err);
+    alert("تعذر تحديث حالة الطلبية.");
+  }
+}
+
+async function completeOrder(id){ await setOrderStatus(id,"completed"); }
+
+async function deleteOrder(id){
+  const order=ordersCache.find(o=>o.id===id);
+  if(!order) return;
+  if(!confirm("حذف الطلبية "+(order.order_number||"")+"؟")) return;
+  try{
+    const r=await supabaseClient.from("orders").delete().eq("id",id);
+    if(r.error) throw r.error;
+    await loadOrders();
+  }catch(err){
+    console.error("deleteOrder:",err);
+    alert("تعذر حذف الطلبية.");
+  }
+}
+
+async function convertOrderToInvoice(id){
+  const order=ordersCache.find(o=>o.id===id);
+  if(!order) return;
+  const orderItems=(order.order_items||[]).slice().sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+  if(!orderItems.length){ alert("الطلبية لا تحتوي على أصناف."); return; }
+
+  items=orderItems.map(i=>{
+    const product=getProducts().find(p=>p.code===i.code);
+    return {
+      id:nextId++,
+      code:i.code||"",
+      name:i.name || product?.name || "",
+      price:Number(product?.price)||0,
+      qty:Number(i.quantity)||1,
+      notes:i.notes||"",
+      image:product?.image||""
+    };
+  });
+  currentInvoiceId=null;
+  currentOrderId=id;
+  invoiceDisplayDate="";
+  generateInvoiceNumber();
+  document.getElementById("invoiceNoDisplay").textContent=invoiceNumber;
+  document.getElementById("dateDisplay").textContent=formatDate();
+  document.getElementById("clientName").value=order.client_name||"";
+  document.getElementById("clientPhone").value=order.client_phone||"";
+  document.getElementById("notesInput").value=order.notes||"";
+  selectedClientId=order.client_id||null;
+  discountPercent=0;
+  document.getElementById("discountPercent").value="0";
+  renderItems();
+  renderInvoice();
+  window.scrollTo({top:0,behavior:"smooth"});
+  alert("تم تحميل الطلبية كفاتورة جديدة. راجعها ثم اضغط «حفظ الفاتورة».");
+}
+
+function setupOrdersRealtime(){
+  if(ordersRealtimeChannel || !supabaseClient) return;
+  ordersRealtimeChannel=supabaseClient.channel("orders-live")
+    .on("postgres_changes",{event:"*",schema:"public",table:"orders"},()=>loadOrders())
+    .subscribe(status=>console.log("orders realtime:",status));
+}
+
 /* =========================================================
    بدء التشغيل
    ========================================================= */
@@ -1997,6 +2255,7 @@ async function init(){
   document.getElementById("notesInput").addEventListener("input", renderInvoice);
   document.getElementById("invoiceHistorySearch").addEventListener("input", e => renderInvoiceHistory(e.target.value));
   updateHistoryCurrent();
+  setupOrdersRealtime();
 
   renderItems();
   renderInvoice();
