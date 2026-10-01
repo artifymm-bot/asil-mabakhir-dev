@@ -2107,7 +2107,6 @@ async function createOrderFromCurrentInvoice(){
       await supabaseClient.from("orders").delete().eq("id",r.data.id);
       throw ir.error;
     }
-    currentOrderId=r.data.id;
     await loadOrders();
     document.getElementById("ordersCard").style.display="block";
     alert("تم إرسال الطلبية "+orderNumber+" للتحضير.");
@@ -2123,7 +2122,7 @@ async function loadOrders(){
   list.innerHTML='<div class="history-loading">جارٍ تحميل الطلبات...</div>';
   try{
     const r=await supabaseClient.from("orders")
-      .select("id,order_number,client_name,client_phone,notes,status,completed_at,invoice_id,created_at,updated_at,order_items(id,code,name,quantity,notes,sort_order)")
+      .select("id,order_number,client_id,client_name,client_phone,notes,status,completed_at,invoice_id,created_at,updated_at,order_items(id,code,name,quantity,notes,sort_order)")
       .order("created_at",{ascending:false}).limit(200);
     if(r.error) throw r.error;
     ordersCache=r.data||[];
