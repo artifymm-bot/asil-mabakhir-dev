@@ -626,6 +626,20 @@
     </div>
   </section>
 
+  <div id="contactModal" class="contact-modal">
+    <div class="contact-modal-card">
+      <h3 style="margin-top:0">جهة اتصال العميل</h3>
+      <input type="hidden" id="contactId">
+      <div class="field"><label>اسم العميل</label><input type="text" id="contactName" placeholder="اسم العميل"></div>
+      <div class="field" style="margin-top:10px"><label>رقم العميل</label><input type="tel" id="contactPhone" placeholder="رقم العميل"></div>
+      <div class="field" style="margin-top:10px"><label>ملاحظات</label><textarea id="contactNotes" placeholder="ملاحظات عن العميل"></textarea></div>
+      <div class="contact-modal-actions">
+        <button type="button" class="btn-contact-add" onclick="saveContact()">💾 حفظ</button>
+        <button type="button" class="btn-clear" onclick="closeContactModal()">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
   <footer class="dev-credit">برمجة وتطوير محمد حسني احمد</footer>
 </div>
 
@@ -1274,13 +1288,40 @@ function categoryOptionsHTML(selectedCode){
    ========================================================= */
 let PRODUCT_OVERRIDES = {};
 let CUSTOM_PRODUCTS = [];
+let SUPABASE_PRODUCT_IMAGES = {};
 
 function getProducts(){
   const base = PRODUCTS.map(p => {
     const override = PRODUCT_OVERRIDES[p.code] || {};
-    return {...p, ...override, image: override.image || p.image || ""};
+    return {
+      ...p,
+      ...override,
+      image: override.image || SUPABASE_PRODUCT_IMAGES[p.code] || p.image || ""
+    };
   });
   return base.concat(CUSTOM_PRODUCTS.map(p => ({...p})));
+}
+
+async function loadProductsFromSupabase(){
+  try{
+    if(!supabaseClient) return;
+    const r = await supabaseClient
+      .from("products")
+      .select("code,name,price,image_url")
+      .order("id",{ascending:true});
+    if(r.error) throw r.error;
+
+    SUPABASE_PRODUCT_IMAGES = {};
+    (r.data || []).forEach(p => {
+      const code = String(p.code || "").trim();
+      if(code && p.image_url) SUPABASE_PRODUCT_IMAGES[code] = String(p.image_url);
+    });
+
+    console.log("Supabase product images loaded:", Object.keys(SUPABASE_PRODUCT_IMAGES).length);
+  }catch(err){
+    console.error("loadProductsFromSupabase:", err);
+    SUPABASE_PRODUCT_IMAGES = {};
+  }
 }
 
 function productStorageKey(){
@@ -1761,19 +1802,6 @@ function preparePrintInvoice(){
     </style>
   </head><body>
     <div class="invoice-print-wrap">${source.outerHTML}</div>
-  <div id="contactModal" class="contact-modal">
-  <div class="contact-modal-card">
-    <h3 style="margin-top:0">جهة اتصال العميل</h3>
-    <input type="hidden" id="contactId">
-    <div class="field"><label>اسم العميل</label><input type="text" id="contactName" placeholder="اسم العميل"></div>
-    <div class="field" style="margin-top:10px"><label>رقم العميل</label><input type="tel" id="contactPhone" placeholder="رقم العميل"></div>
-    <div class="field" style="margin-top:10px"><label>ملاحظات</label><textarea id="contactNotes" placeholder="ملاحظات عن العميل"></textarea></div>
-    <div class="contact-modal-actions">
-      <button type="button" class="btn-contact-add" onclick="saveContact()">💾 حفظ</button>
-      <button type="button" class="btn-clear" onclick="closeContactModal()">إلغاء</button>
-    </div>
-  </div>
-</div>
 </body></html>`);
   printWindow.document.close();
 
@@ -1971,8 +1999,9 @@ async function shareWhatsApp(){
 /* =========================================================
    بدء التشغيل
    ========================================================= */
-function init(){
+async function init(){
   loadProductCatalog();
+  await loadProductsFromSupabase();
   generateInvoiceNumber();
   document.getElementById("invoiceNoDisplay").textContent = invoiceNumber;
   document.getElementById("dateDisplay").textContent = invoiceDisplayDate ? formatDateFromValue(invoiceDisplayDate) : formatDate();
