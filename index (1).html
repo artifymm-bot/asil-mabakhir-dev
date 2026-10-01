@@ -509,7 +509,7 @@
         <input type="text" id="clientName" placeholder="اسم العميل">
         <div class="client-contact-tools">
           <button type="button" class="btn-contact" onclick="toggleContactsPanel()">📒 جهات الاتصال</button>
-          <button type="button" class="btn-contact-add" onclick="openContactModal()">＋ إضافة جهة اتصال</button>
+          <button type="button" class="btn-contact-add" onclick="pickPhoneContact()">📱 إضافة من جهات اتصال الهاتف</button>
         </div>
         <div id="contactsPanel" class="contacts-panel">
           <input id="contactsSearch" class="contacts-search" type="search" placeholder="ابحث بالاسم أو رقم العميل">
@@ -861,6 +861,78 @@ function renderContacts(term=""){
         <button type="button" class="contact-delete" onclick="deleteContact('${c.id}')">حذف</button>
       </div>
     </div>`).join("");
+}
+
+async function pickPhoneContact(){
+  if(!("contacts" in navigator) || !navigator.contacts || typeof navigator.contacts.select !== "function"){
+    alert("اختيار جهات اتصال الهاتف غير مدعوم في هذا المتصفح. جرّب فتح التطبيق من Chrome على هاتف Android عبر رابط HTTPS.");
+    return;
+  }
+
+  try{
+    const supported = typeof navigator.contacts.getProperties === "function"
+      ? await navigator.contacts.getProperties()
+      : ["name","tel"];
+
+    const props = ["name","tel"].filter(p => supported.includes(p));
+    if(!props.includes("name") || !props.includes("tel")){
+      alert("المتصفح لا يسمح بقراءة اسم ورقم جهة الاتصال معًا.");
+      return;
+    }
+
+    const contacts = await navigator.contacts.select(props, {multiple:false});
+    const contact = contacts && contacts[0];
+    if(!contact) return;
+
+    const name = Array.isArray(contact.name) ? (contact.name.find(Boolean) || "") : (contact.name || "");
+    const phone = Array.isArray(contact.tel) ? (contact.tel.find(Boolean) || "") : (contact.tel || "");
+
+    if(!name && !phone){
+      alert("لم يتم العثور على اسم أو رقم في جهة الاتصال المختارة.");
+      return;
+    }
+
+    selectedClientId = null;
+    document.getElementById("clientName").value = name;
+    document.getElementById("clientPhone").value = phone;
+    renderInvoice();
+
+    // حفظه أيضًا في جهات اتصال التطبيق حتى يظهر لاحقًا في القائمة.
+    if(name){
+      const existing = clientsCache.find(c =>
+        String(c.name||"").trim() === String(name).trim() ||
+        (phone && String(c.phone||"").replace(/\\D/g,"") === String(phone).replace(/\\D/g,""))
+      );
+
+      let r;
+      if(existing){
+        r = await supabaseClient.from("clients")
+          .update({name, phone})
+          .eq("id", existing.id)
+          .select()
+          .single();
+      }else{
+        r = await supabaseClient.from("clients")
+          .insert({name, phone, notes:"تمت الإضافة من جهات اتصال الهاتف"})
+          .select()
+          .single();
+      }
+
+      if(!r.error && r.data){
+        selectedClientId = r.data.id;
+        await loadClients();
+      }else if(r.error){
+        console.error("save phone contact:", r.error);
+      }
+    }
+
+    document.getElementById("contactsPanel").style.display="none";
+    renderInvoice();
+  }catch(err){
+    console.error("pickPhoneContact:", err);
+    if(err && (err.name === "AbortError" || err.name === "NotAllowedError")) return;
+    alert("تعذر فتح جهات اتصال الهاتف. تأكد من استخدام التطبيق من متصفح يدعم اختيار جهات الاتصال.");
+  }
 }
 
 function toggleContactsPanel(){
