@@ -519,12 +519,38 @@
   .order-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
   .order-action-primary{background:var(--navy);color:#fff}
   .order-action-complete{background:#2f7d32;color:#fff}
+  .order-action-complete:disabled{opacity:.55;cursor:not-allowed}
   .order-action-invoice{background:var(--orange);color:#fff}
   .order-action-delete{background:var(--danger-bg);color:var(--danger);border:1px solid rgba(179,69,47,.25)}
-  .order-items-preview{margin-top:10px;padding-top:9px;border-top:1px dashed var(--border);display:flex;flex-direction:column;gap:5px}
-  .order-item-line{display:flex;justify-content:space-between;gap:8px;font-size:13px}
-  .order-item-line b{color:var(--navy)}
+  .order-items-preview{margin-top:10px;padding-top:9px;border-top:1px dashed var(--border);display:flex;flex-direction:column;gap:8px}
+  .order-item-line{display:grid;grid-template-columns:64px 1fr 58px 42px 1.1fr;gap:8px;align-items:center;font-size:13px;padding:8px;border:1px solid var(--border);border-radius:10px;background:#fff}
+  .order-item-line.prepared{background:#edf8ee;border-color:#8ac58e;opacity:.78}
+  .order-item-line.prepared .prep-item-name{text-decoration:line-through}
+  .order-item-image{width:56px;height:56px;object-fit:cover;border-radius:8px;background:#f3efe4}
+  .order-item-image-empty{width:56px;height:56px;border-radius:8px;background:#f3efe4;display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-size:22px}
+  .prep-item-code{font-weight:800;color:var(--navy)}
+  .prep-item-name{font-weight:800}
+  .prep-item-qty{font-size:16px;font-weight:900;color:var(--orange);text-align:center}
+  .prep-check{width:38px;height:38px;padding:0;border-radius:9px;background:#f3efe4;color:var(--navy);border:1px solid var(--border);font-size:22px;font-weight:900}
+  .prep-check.checked{background:#2f7d32;color:#fff;border-color:#2f7d32}
+  .prep-note-input{font-family:inherit;width:100%;min-height:38px;padding:7px 9px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;background:#fff}
+  .prep-note-input:focus{outline:none;border-color:var(--orange)}
+  .prep-all-status{margin-top:10px;padding:10px 12px;border-radius:9px;background:#fff2e0;color:#9a5a16;font-weight:800;font-size:13px}
+  .prep-all-status.ready{background:#e8f6ea;color:#28752e}
   .order-create-note{margin:0 0 12px;color:var(--muted-2);font-size:13px;font-weight:600}
+  .preparer-only{display:none}
+  body.preparer-mode .wrap > :not(#ordersScreen){display:none!important}
+  body.preparer-mode #ordersScreen{position:fixed!important;inset:0!important;display:block!important;padding:14px 10px 30px!important;z-index:9998}
+  body.preparer-mode #ordersScreen .subscreen-head{margin-bottom:12px}
+  body.preparer-mode #ordersScreen #ordersCard{display:block!important}
+  body.preparer-mode #ordersScreen .orders-toolbar,
+  body.preparer-mode #ordersScreen .order-create-note,
+  body.preparer-mode #ordersScreen .subscreen-back{display:none!important}
+  @media (max-width:640px){
+    .order-item-line{grid-template-columns:54px 1fr 48px 38px;gap:6px}
+    .order-item-line .prep-note-input{grid-column:1/-1}
+    .order-item-image,.order-item-image-empty{width:50px;height:50px}
+  }
 
 </style>
 </head>
@@ -580,7 +606,10 @@
     </div>
         <section class="card" id="ordersCard" style="display:none;">
     <div class="toolbar-row">
-      <h2 style="margin:0;">📦 الطلبات والتحضير</h2>
+      <div>
+        <h2 style="margin:0;">📦 الطلبات والتحضير</h2>
+        <div id="preparerModeLabel" class="preparer-only" style="margin-top:4px;color:var(--muted-2);font-size:12px;font-weight:700;">وضع المحضر — بدون أسعار</div>
+      </div>
       <button type="button" class="btn-history" onclick="loadOrders()">↻ تحديث</button>
     </div>
     <p class="order-create-note">بعد موافقة العميل، افتح الفاتورة المطلوبة من «الفواتير» واضغط «إرسال للتحضير». ستظهر للمحضر مباشرة بدون الأسعار.</p>
@@ -1126,6 +1155,21 @@ function openAppSubscreen(id){
   document.body.style.overflow="hidden";
   if(id==="invoiceHistoryScreen") loadInvoiceHistory();
   if(id==="ordersScreen") loadOrders();
+}
+function isPreparerMode(){
+  return new URLSearchParams(window.location.search).get("mode")==="preparer";
+}
+function enterPreparerMode(){
+  document.body.classList.add("preparer-mode");
+  const screen=document.getElementById("ordersScreen");
+  const card=document.getElementById("ordersCard");
+  if(screen) { screen.classList.add("open"); screen.setAttribute("aria-hidden","false"); }
+  if(card) card.style.display="block";
+  const label=document.getElementById("preparerModeLabel");
+  if(label) label.style.display="block";
+  const filter=document.getElementById("ordersFilter");
+  if(filter) filter.value="preparing";
+  document.body.style.overflow="hidden";
 }
 function closeAppSubscreen(id){
   const screen=document.getElementById(id);
@@ -2262,7 +2306,7 @@ async function createOrderFromCurrentInvoice(){
       const q=await supabaseClient.from("orders").insert({order_number:inv.data.invoice_number,invoice_id:id,client_id:inv.data.client_id||null,client_name:inv.data.client_name||"",client_phone:inv.data.client_phone||"",notes:inv.data.notes||"",status:"preparing"}).select().single();if(q.error)throw q.error;orderId=q.data.id;
     }
     const dr=await supabaseClient.from("order_items").delete().eq("order_id",orderId);if(dr.error)throw dr.error;
-    const rows=items.filter(x=>x.code).map((x,i)=>{const p=getProducts().find(y=>y.code===x.code);return {order_id:orderId,product_id:p?.id||null,code:x.code||"",name:x.name||p?.name||"",quantity:Number(x.qty)||1,notes:x.notes||"",sort_order:i};});
+    const rows=items.filter(x=>x.code).map((x,i)=>{const p=getProducts().find(y=>y.code===x.code);return {order_id:orderId,product_id:p?.id||null,code:x.code||"",name:x.name||p?.name||"",quantity:Number(x.qty)||1,notes:x.notes||"",sort_order:i,prepared:false};});
     const ir=await supabaseClient.from("order_items").insert(rows);if(ir.error)throw ir.error;
     await loadInvoiceHistory();document.getElementById("ordersCard").style.display="block";await loadOrders();
     alert("تم إرسال الفاتورة رقم "+inv.data.invoice_number+" للتحضير.");
@@ -2275,7 +2319,7 @@ async function loadOrders(){
   list.innerHTML='<div class="history-loading">جارٍ تحميل الطلبات...</div>';
   try{
     const r=await supabaseClient.from("orders")
-      .select("id,order_number,client_id,client_name,client_phone,notes,status,completed_at,invoice_id,created_at,updated_at,order_items(id,code,name,quantity,notes,sort_order)")
+      .select("id,order_number,client_id,client_name,client_phone,notes,status,completed_at,invoice_id,created_at,updated_at,order_items(id,product_id,code,name,quantity,notes,sort_order,prepared)")
       .order("created_at",{ascending:false}).limit(200);
     if(r.error) throw r.error;
     ordersCache=r.data||[];
@@ -2286,21 +2330,86 @@ async function loadOrders(){
   }
 }
 
+async function toggleOrderItemPrepared(itemId, prepared){
+  try{
+    const q=await supabaseClient.from("order_items").update({prepared:!!prepared}).eq("id",itemId);
+    if(q.error) throw q.error;
+    const item=ordersCache.flatMap(o=>o.order_items||[]).find(x=>x.id===itemId);
+    if(item) item.prepared=!!prepared;
+    renderOrders();
+  }catch(err){
+    console.error("toggleOrderItemPrepared:",err);
+    alert("تعذر حفظ حالة الصنف.");
+  }
+}
+
+async function updateOrderItemNote(itemId, value){
+  try{
+    const q=await supabaseClient.from("order_items").update({notes:String(value||"").trim()}).eq("id",itemId);
+    if(q.error) throw q.error;
+    const item=ordersCache.flatMap(o=>o.order_items||[]).find(x=>x.id===itemId);
+    if(item) item.notes=String(value||"").trim();
+  }catch(err){
+    console.error("updateOrderItemNote:",err);
+    alert("تعذر حفظ ملاحظة الصنف.");
+  }
+}
+
+function getPrepProductImage(code, productId){
+  const p=getProducts().find(x=>(productId && x.id===productId)||x.code===code);
+  return p?.image_url||p?.image||"";
+}
+
 function renderOrders(){
   const list=document.getElementById("ordersList");if(!list)return;
-  const filter=document.getElementById("ordersFilter")?.value||"all";const rows=ordersCache.filter(o=>filter==="all"||o.status===filter);
-  if(!rows.length){list.innerHTML='<div class="history-empty">لا توجد فواتير في هذه الحالة.</div>';return;}
+  const isPreparer=document.body.classList.contains("preparer-mode");
+  const filter=document.getElementById("ordersFilter")?.value||"all";
+  let rows=ordersCache.filter(o=>isPreparer ? (o.status==="preparing") : (filter==="all"||o.status===filter));
+  if(!rows.length){list.innerHTML='<div class="history-empty">'+(isPreparer?"لا توجد طلبات قيد التحضير حاليًا.":"لا توجد فواتير في هذه الحالة.")+'</div>';return;}
   list.innerHTML=rows.map(o=>{
     const sorted=(o.order_items||[]).slice().sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
-    const itemsHtml=sorted.map(i=>'<div class="order-item-line"><span><b>'+escapeHtml(i.code||"—")+'</b> — '+escapeHtml(i.name||"—")+'</span><span>× '+escapeHtml(String(i.quantity??1))+'</span></div>').join("");
-    const status=ORDER_STATUS_LABELS[o.status]||o.status;const completed=o.completed_at?" — خلصت: "+formatOrderDate(o.completed_at):"";
-    let actions="";if(o.status==="preparing")actions+='<button type="button" class="order-action-complete" onclick="completeOrder(&quot;'+o.id+'&quot;)">✓ تم التحضير</button>';if(o.status==="completed")actions+='<span class="history-status completed">✓ تم التحضير</span>';actions+='<button type="button" class="order-action-delete" onclick="deleteOrder(&quot;'+o.id+'&quot;)">حذف</button>';
-    return '<div class="order-row"><div class="order-row-main"><div><div class="order-number">فاتورة '+escapeHtml(o.order_number)+'</div><div class="order-client">العميل: '+escapeHtml(o.client_name||"بدون اسم")+'</div><div class="order-meta">'+(o.client_phone?"رقم العميل: "+escapeHtml(o.client_phone)+" — ":"")+"الحالة: "+escapeHtml(status)+completed+'</div></div><span class="order-status '+orderStatusClass(o.status)+'">'+escapeHtml(status)+'</span></div><div class="order-items-preview">'+itemsHtml+'</div><div class="order-actions">'+actions+'</div></div>';
+    const allPrepared=sorted.length>0 && sorted.every(i=>!!i.prepared);
+    const itemsHtml=sorted.map(i=>{
+      const img=getPrepProductImage(i.code,i.product_id);
+      const imageHtml=img
+        ? '<img class="order-item-image" src="'+escapeHtml(img)+'" alt="" loading="lazy">'
+        : '<div class="order-item-image-empty">📦</div>';
+      const checked=!!i.prepared;
+      const noteValue=escapeHtml(i.notes||"");
+      if(isPreparer){
+        return '<div class="order-item-line '+(checked?"prepared":"")+'">'+
+          imageHtml+
+          '<div><div class="prep-item-code">'+escapeHtml(i.code||"—")+'</div><div class="prep-item-name">'+escapeHtml(i.name||"—")+'</div></div>'+
+          '<div class="prep-item-qty">× '+escapeHtml(String(i.quantity??1))+'</div>'+
+          '<button type="button" class="prep-check '+(checked?"checked":"")+'" aria-label="'+(checked?"تم إخراج الصنف":"لم يتم إخراج الصنف")+'" onclick="toggleOrderItemPrepared(&quot;'+i.id+'&quot;,'+(!checked)+')">'+(checked?"✓":"")+'</button>'+
+          '<input class="prep-note-input" value="'+noteValue+'" placeholder="ملاحظة / هدية" onchange="updateOrderItemNote(&quot;'+i.id+'&quot;,this.value)">'+
+          '</div>';
+      }
+      return '<div class="order-item-line"><div><b>'+escapeHtml(i.code||"—")+'</b> — '+escapeHtml(i.name||"—")+'</div><div>× '+escapeHtml(String(i.quantity??1))+'</div><div>'+escapeHtml(i.notes||"")+'</div></div>';
+    }).join("");
+    const status=ORDER_STATUS_LABELS[o.status]||o.status;
+    let actions="";
+    if(isPreparer){
+      actions='<div class="prep-all-status '+(allPrepared?"ready":"")+'">'+(allPrepared?"✓ كل الأصناف تم إخراجها — جاهز لإنهاء التحضير":"علّم ✓ أمام كل صنف بعد إخراجه")+'</div>'+
+        '<button type="button" class="order-action-complete" '+(allPrepared?"":"disabled ")+'onclick="completeOrder(&quot;'+o.id+'&quot;)">✓ تم التحضير</button>';
+    }else{
+      actions='<button type="button" class="order-action-delete" onclick="deleteOrder(&quot;'+o.id+'&quot;)">حذف</button>';
+    }
+    return '<div class="order-row"><div class="order-row-main"><div><div class="order-number">فاتورة '+escapeHtml(o.order_number)+'</div><div class="order-client">العميل: '+escapeHtml(o.client_name||"بدون اسم")+'</div><div class="order-meta">'+(isPreparer?"":"رقم العميل: "+escapeHtml(o.client_phone||"")+" — ")+"الحالة: "+escapeHtml(status)+'</div></div><span class="order-status '+orderStatusClass(o.status)+'">'+escapeHtml(status)+'</span></div><div class="order-items-preview">'+itemsHtml+'</div><div class="order-actions">'+actions+'</div></div>';
   }).join("");
 }
 async function setOrderStatus(id,status){
-  try{const q=await supabaseClient.from("orders").update({status:status,completed_at:status==="completed"?new Date().toISOString():null}).eq("id",id);if(q.error)throw q.error;await loadOrders();if(getComputedStyle(document.getElementById("invoiceHistoryCard")).display!=="none")await loadInvoiceHistory();}
-  catch(err){console.error("setOrderStatus:",err);alert("تعذر تحديث حالة التحضير.");}
+  try{
+    if(status==="completed"){
+      const order=ordersCache.find(o=>o.id===id);
+      const its=(order?.order_items||[]);
+      if(its.length && !its.every(i=>!!i.prepared)){alert("لا يمكن إنهاء التحضير قبل تعليم ✓ على كل الأصناف.");return;}
+    }
+    const q=await supabaseClient.from("orders").update({status:status,completed_at:status==="completed"?new Date().toISOString():null}).eq("id",id);
+    if(q.error)throw q.error;
+    await loadOrders();
+    if(getComputedStyle(document.getElementById("invoiceHistoryCard")).display!=="none")await loadInvoiceHistory();
+  }catch(err){console.error("setOrderStatus:",err);alert("تعذر تحديث حالة التحضير.");}
 }
 async function completeOrder(id){await setOrderStatus(id,"completed");}
 async function deleteOrder(id){
@@ -2340,6 +2449,8 @@ async function init(){
   document.getElementById("invoiceHistorySearch").addEventListener("input", e => renderInvoiceHistory(e.target.value));
   updateHistoryCurrent();
   setupOrdersRealtime();
+
+  if(isPreparerMode()) enterPreparerMode();
 
   renderItems();
   renderInvoice();
