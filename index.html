@@ -608,7 +608,7 @@
     <div class="toolbar-row">
       <div>
         <h2 style="margin:0;">📦 الطلبات والتحضير</h2>
-        <div id="preparerModeLabel" class="preparer-only" style="margin-top:4px;color:var(--muted-2);font-size:12px;font-weight:700;">وضع المحضر — بدون أسعار</div>
+        <div id="preparerModeLabel" class="preparer-only" style="margin-top:4px;color:var(--muted-2);font-size:12px;font-weight:700;">وضع المحضر</div>
       </div>
       <button type="button" class="btn-history" onclick="loadOrders()">↻ تحديث</button>
     </div>
@@ -2382,7 +2382,7 @@ function renderOrders(){
           '<div><div class="prep-item-code">'+escapeHtml(i.code||"—")+'</div><div class="prep-item-name">'+escapeHtml(i.name||"—")+'</div></div>'+
           '<div class="prep-item-qty">× '+escapeHtml(String(i.quantity??1))+'</div>'+
           '<button type="button" class="prep-check '+(checked?"checked":"")+'" aria-label="'+(checked?"تم إخراج الصنف":"لم يتم إخراج الصنف")+'" onclick="toggleOrderItemPrepared(&quot;'+i.id+'&quot;,'+(!checked)+')">'+(checked?"✓":"")+'</button>'+
-          '<input class="prep-note-input" value="'+noteValue+'" placeholder="ملاحظة / هدية" onchange="updateOrderItemNote(&quot;'+i.id+'&quot;,this.value)">'+
+          '<input class="prep-note-input" value="'+noteValue+'" placeholder="ملاحظات الصنف" onchange="updateOrderItemNote(&quot;'+i.id+'&quot;,this.value)">'+
           '</div>';
       }
       return '<div class="order-item-line"><div><b>'+escapeHtml(i.code||"—")+'</b> — '+escapeHtml(i.name||"—")+'</div><div>× '+escapeHtml(String(i.quantity??1))+'</div><div>'+escapeHtml(i.notes||"")+'</div></div>';
