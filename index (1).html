@@ -485,7 +485,7 @@
     <button type="button" class="btn-history" onclick="toggleInvoiceHistory()">🧾 الفواتير السابقة</button>
   </div>
 
-  <section class="card" id="invoiceHistoryCard">
+  <section class="card" id="invoiceHistoryCard" style="display:none;">
     <div class="toolbar-row">
       <h2 style="margin:0;">الفواتير السابقة</h2>
       <div class="history-actions" style="margin-top:0">
@@ -816,10 +816,18 @@ let clientsCache = [];
 let selectedClientId = null;
 
 async function loadClients(){
-  const r=await supabaseClient.from("clients").select("id,name,phone,notes,created_at,updated_at").order("name",{ascending:true});
-  if(r.error){ console.error("loadClients:",r.error); return; }
-  clientsCache=r.data||[];
-  renderContacts(document.getElementById("contactsSearch")?.value||"");
+  const list=document.getElementById("contactsList");
+  try{
+    if(!supabaseClient) throw new Error("Supabase غير متاح");
+    const r=await supabaseClient.from("clients").select("id,name,phone,notes,created_at,updated_at").order("name",{ascending:true});
+    if(r.error) throw r.error;
+    clientsCache=r.data||[];
+    renderContacts(document.getElementById("contactsSearch")?.value||"");
+  }catch(err){
+    console.error("loadClients:",err);
+    clientsCache=[];
+    if(list) list.innerHTML='<div class="contact-empty">تعذر تحميل جهات الاتصال. افتح أدوات المطور لمعرفة الخطأ.</div>';
+  }
 }
 
 function renderContacts(term=""){
