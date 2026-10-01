@@ -433,6 +433,26 @@
     table.inv-table{ font-size: 11px; }
     table.inv-table thead th, table.inv-table tbody td{ padding: 6px 4px; }
   }
+  /* ================= الفواتير السابقة ================= */
+  .history-toggle-row{display:flex;justify-content:flex-start;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .btn-history{background:var(--navy);color:#fff}
+  .btn-save{background:#2f7d32;color:#fff}
+  #invoiceHistoryCard{display:none}
+  .history-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .history-search{flex:1;min-width:220px;padding:11px 12px;border:1px solid var(--border);border-radius:9px;font-family:inherit;font-size:14px}
+  .history-list{display:flex;flex-direction:column;gap:10px}
+  .history-row{border:1px solid var(--border);border-radius:12px;padding:13px;background:#fdfcf9}
+  .history-row-main{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+  .history-number{font-weight:800;color:var(--navy);font-size:16px}
+  .history-client{font-weight:700;margin-top:4px}
+  .history-meta{color:var(--muted-2);font-size:12.5px;margin-top:5px}
+  .history-total{font-weight:800;color:var(--orange);font-size:16px}
+  .history-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+  .history-open{background:var(--navy);color:#fff}
+  .history-delete{background:var(--danger-bg);color:var(--danger);border:1px solid rgba(179,69,47,.25)}
+  .history-new{background:var(--orange);color:#fff}
+  .history-empty{text-align:center;padding:25px;color:var(--muted-2);border:1.5px dashed var(--border);border-radius:12px}
+  .history-loading{text-align:center;padding:20px;color:var(--muted-2)}
 </style>
 </head>
 <body>
@@ -443,6 +463,26 @@
     <h1>الأصيل — نظام استخراج فاتورة على السريع</h1>
     <p class="subtitle">قائمة الأصناف والأسعار — تعديل الكود والكمية والسعر ثم تصدير PDF أو صورة ومشاركة الفاتورة</p>
   </header>
+
+  <div class="history-toggle-row">
+    <button type="button" class="btn-history" onclick="toggleInvoiceHistory()">🧾 الفواتير السابقة</button>
+  </div>
+
+  <section class="card" id="invoiceHistoryCard">
+    <div class="toolbar-row">
+      <h2 style="margin:0;">الفواتير السابقة</h2>
+      <div class="history-actions" style="margin-top:0">
+        <button type="button" class="history-new" onclick="startNewInvoice(true)">＋ فاتورة جديدة</button>
+        <button type="button" class="btn-history" onclick="loadInvoiceHistory()">↻ تحديث</button>
+      </div>
+    </div>
+    <div class="history-toolbar">
+      <input id="invoiceHistorySearch" class="history-search" type="search" placeholder="ابحث برقم الفاتورة أو اسم العميل">
+    </div>
+    <div id="invoiceHistoryList" class="history-list">
+      <div class="history-loading">جارٍ تحميل الفواتير...</div>
+    </div>
+  </section>
 
   <section class="card">
     <h2>بيانات الفاتورة</h2>
@@ -498,6 +538,7 @@
     </div>
 
     <div class="actions-row">
+      <button class="btn-save" onclick="saveInvoiceManually()">💾 حفظ الفاتورة</button>
       <button class="btn-clear" onclick="clearInvoice()">مسح الكل</button>
       <button class="btn-pdf" onclick="exportPDF()">📄 تصدير PDF</button>
       <button class="btn-whatsapp" onclick="shareWhatsApp()">🟢 إرسال إلى واتساب</button>
@@ -622,6 +663,7 @@
     </div>
   </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* =========================================================
    بيانات المنتجات — لا تعدَّل الأكواد أو الأسعار
@@ -728,6 +770,218 @@ let invoiceNumber = "";
 let discountPercent = 0;
 
 /* =========================================================
+   Supabase — الفواتير السابقة
+   ========================================================= */
+const SUPABASE_URL = "https://shojdoigxhoybwtpkvam.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_M8ayaSDZOZ3MIrbHqyD-0Q_mY6kHSPP";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+let currentInvoiceId = null;
+let invoiceDisplayDate = "";
+
+function getInvoicePayload(){
+  const clientName = document.getElementById("clientName")?.value.trim() || "";
+  const notes = document.getElementById("notesInput")?.value.trim() || "";
+  const subtotal = calculateSubtotal();
+  const discountAmount = calculateDiscountAmount();
+  return {
+    invoice_number: invoiceNumber,
+    client_name: clientName,
+    notes,
+    discount_percent: Number(discountPercent) || 0,
+    subtotal,
+    discount_amount: discountAmount,
+    total: calculateTotal()
+  };
+}
+
+async function saveCurrentInvoiceToSupabase(){
+  const validItems = items.filter(i => i.code);
+  if(!validItems.length) return null;
+
+  const payload = getInvoicePayload();
+  let invoice;
+
+  if(currentInvoiceId){
+    const r = await supabaseClient.from("invoices").update(payload).eq("id",currentInvoiceId).select().single();
+    if(r.error) throw r.error;
+    invoice = r.data;
+  }else{
+    const r = await supabaseClient.from("invoices").insert(payload).select().single();
+    if(r.error) throw r.error;
+    invoice = r.data;
+    currentInvoiceId = invoice.id;
+  }
+
+  const d = await supabaseClient.from("invoice_items").delete().eq("invoice_id",invoice.id);
+  if(d.error) throw d.error;
+
+  const rows = validItems.map((item,index) => ({
+    invoice_id: invoice.id,
+    product_id: null,
+    code: item.code || "",
+    name: item.name || "",
+    quantity: Number(item.qty) || 0,
+    price: Number(item.price) || 0,
+    line_total: calculateItemTotal(item),
+    notes: item.notes || "",
+    sort_order: index
+  }));
+
+  const i = await supabaseClient.from("invoice_items").insert(rows);
+  if(i.error) throw i.error;
+
+  updateHistoryCurrent();
+  return invoice.id;
+}
+
+function toggleInvoiceHistory(){
+  const card=document.getElementById("invoiceHistoryCard");
+  if(!card) return;
+  const opening=getComputedStyle(card).display==="none";
+  card.style.display=opening?"block":"none";
+  if(opening) loadInvoiceHistory();
+}
+
+function formatHistoryDate(value){
+  if(!value) return "—";
+  const d=new Date(value);
+  if(Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("ar-EG",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
+}
+
+function formatDateFromValue(value){
+  if(!value) return formatDate();
+  const d=new Date(value);
+  if(Number.isNaN(d.getTime())) return formatDate();
+  return String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear();
+}
+
+function updateHistoryCurrent(){
+  const btn=document.querySelector(".btn-save");
+  if(btn) btn.textContent=currentInvoiceId?"💾 حفظ التعديلات":"💾 حفظ الفاتورة";
+}
+
+async function loadInvoiceHistory(){
+  const list=document.getElementById("invoiceHistoryList");
+  if(!list) return;
+  list.innerHTML='<div class="history-loading">جارٍ تحميل الفواتير...</div>';
+  const r=await supabaseClient.from("invoices").select("id,invoice_number,client_name,total,created_at,updated_at").order("created_at",{ascending:false}).limit(200);
+  if(r.error){
+    console.error("loadInvoiceHistory:",r.error);
+    list.innerHTML='<div class="history-empty">تعذر تحميل الفواتير السابقة. تأكد من اتصال Supabase.</div>';
+    return;
+  }
+  window.__invoiceHistory=r.data||[];
+  renderInvoiceHistory(document.getElementById("invoiceHistorySearch")?.value||"");
+}
+
+function renderInvoiceHistory(term=""){
+  const list=document.getElementById("invoiceHistoryList");
+  if(!list) return;
+  const q=String(term||"").trim().toLowerCase();
+  const rows=(window.__invoiceHistory||[]).filter(inv =>
+    !q ||
+    String(inv.invoice_number||"").toLowerCase().includes(q) ||
+    String(inv.client_name||"").toLowerCase().includes(q)
+  );
+  if(!rows.length){
+    list.innerHTML='<div class="history-empty">لا توجد فواتير محفوظة.</div>';
+    return;
+  }
+  list.innerHTML=rows.map(inv => `
+    <div class="history-row">
+      <div class="history-row-main">
+        <div>
+          <div class="history-number">فاتورة رقم ${escapeHtml(inv.invoice_number)}</div>
+          <div class="history-client">العميل: ${escapeHtml(inv.client_name||"بدون اسم")}</div>
+          <div class="history-meta">التاريخ: ${escapeHtml(formatHistoryDate(inv.created_at))} — آخر تعديل: ${escapeHtml(formatHistoryDate(inv.updated_at||inv.created_at))}</div>
+        </div>
+        <div class="history-total">${formatMoney(inv.total)}</div>
+      </div>
+      <div class="history-actions">
+        <button type="button" class="history-open" onclick="openInvoiceFromHistory('${inv.id}')">فتح وتعديل</button>
+        <button type="button" class="history-delete" onclick="deleteInvoiceFromHistory('${inv.id}')">حذف</button>
+      </div>
+    </div>`).join("");
+}
+
+async function openInvoiceFromHistory(id){
+  try{
+    const r=await supabaseClient.from("invoices").select("*").eq("id",id).single();
+    if(r.error) throw r.error;
+    const ir=await supabaseClient.from("invoice_items").select("*").eq("invoice_id",id).order("sort_order",{ascending:true});
+    if(ir.error) throw ir.error;
+    const invoice=r.data;
+    currentInvoiceId=invoice.id;
+    invoiceNumber=invoice.invoice_number;
+    invoiceDisplayDate=invoice.created_at||"";
+    document.getElementById("invoiceNoDisplay").textContent=invoiceNumber;
+    document.getElementById("dateDisplay").textContent=formatDateFromValue(invoice.created_at);
+    document.getElementById("clientName").value=invoice.client_name||"";
+    document.getElementById("notesInput").value=invoice.notes||"";
+    discountPercent=Number(invoice.discount_percent)||0;
+    document.getElementById("discountPercent").value=discountPercent;
+    nextId=1;
+    items=(ir.data||[]).map(row=>{
+      const p=getProducts().find(x=>x.code===row.code);
+      return {id:nextId++,code:row.code||"",name:row.name||"",qty:Number(row.quantity)||0,price:Number(row.price)||0,image:p?.image||"",notes:row.notes||""};
+    });
+    renderItems();
+    renderInvoice();
+    updateHistoryCurrent();
+    document.getElementById("invoiceHistoryCard").style.display="none";
+    window.scrollTo({top:0,behavior:"smooth"});
+  }catch(err){
+    console.error("openInvoiceFromHistory:",err);
+    alert("تعذر فتح الفاتورة.");
+  }
+}
+
+async function deleteInvoiceFromHistory(id){
+  if(!confirm("هل تريد حذف هذه الفاتورة نهائيًا؟")) return;
+  const r=await supabaseClient.from("invoices").delete().eq("id",id);
+  if(r.error){
+    console.error("deleteInvoiceFromHistory:",r.error);
+    alert("تعذر حذف الفاتورة.");
+    return;
+  }
+  if(currentInvoiceId===id) currentInvoiceId=null;
+  await loadInvoiceHistory();
+}
+
+function startNewInvoice(scroll=true){
+  currentInvoiceId=null;
+  items=[];
+  nextId=1;
+  discountPercent=0;
+  invoiceDisplayDate="";
+  document.getElementById("clientName").value="";
+  document.getElementById("notesInput").value="";
+  document.getElementById("discountPercent").value="0";
+  generateInvoiceNumber();
+  document.getElementById("invoiceNoDisplay").textContent=invoiceNumber;
+  document.getElementById("dateDisplay").textContent=formatDate();
+  renderItems();
+  renderInvoice();
+  updateHistoryCurrent();
+  if(scroll) window.scrollTo({top:0,behavior:"smooth"});
+}
+
+async function saveInvoiceManually(){
+  try{
+    const id=await saveCurrentInvoiceToSupabase();
+    if(!id){ alert("أضف صنفًا واحدًا على الأقل ثم احفظ الفاتورة."); return; }
+    alert("تم حفظ الفاتورة بنجاح.");
+    if(getComputedStyle(document.getElementById("invoiceHistoryCard")).display!=="none") await loadInvoiceHistory();
+  }catch(err){
+    console.error("saveInvoiceManually:",err);
+    alert("تعذر حفظ الفاتورة. تحقق من اتصال Supabase.");
+  }
+}
+
+
+
+/* =========================================================
    دوال مساعدة
    ========================================================= */
 function formatMoney(n){
@@ -739,6 +993,7 @@ function formatMoney(n){
 
 function generateInvoiceNumber(){
   invoiceNumber = String(Date.now()).slice(-6).padStart(6, "0");
+  invoiceDisplayDate = new Date().toISOString();
 }
 
 function getInvoiceFileBaseName(){
@@ -1271,7 +1526,7 @@ function renderItems(){
 function renderInvoice(){
   document.getElementById("pClient").textContent = document.getElementById("clientName").value.trim() || "—";
   document.getElementById("pInvNo").textContent = invoiceNumber;
-  document.getElementById("pDate").textContent = formatDate();
+  document.getElementById("pDate").textContent = invoiceDisplayDate ? formatDateFromValue(invoiceDisplayDate) : formatDate();
 
   items.forEach(i => { if(i.code && !i.image){ const p=getProducts().find(p=>p.code===i.code); if(p) i.image=p.image||""; } });
   const rows = items.filter(i => i.code);
@@ -1559,10 +1814,12 @@ function init(){
   loadProductCatalog();
   generateInvoiceNumber();
   document.getElementById("invoiceNoDisplay").textContent = invoiceNumber;
-  document.getElementById("dateDisplay").textContent = formatDate();
+  document.getElementById("dateDisplay").textContent = invoiceDisplayDate ? formatDateFromValue(invoiceDisplayDate) : formatDate();
 
   document.getElementById("clientName").addEventListener("input", renderInvoice);
   document.getElementById("notesInput").addEventListener("input", renderInvoice);
+  document.getElementById("invoiceHistorySearch").addEventListener("input", e => renderInvoiceHistory(e.target.value));
+  updateHistoryCurrent();
 
   renderItems();
   renderInvoice();
