@@ -453,6 +453,23 @@
   .history-new{background:var(--orange);color:#fff}
   .history-empty{text-align:center;padding:25px;color:var(--muted-2);border:1.5px dashed var(--border);border-radius:12px}
   .history-loading{text-align:center;padding:20px;color:var(--muted-2)}
+  /* ================= جهات اتصال العملاء ================= */
+  .client-contact-tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .btn-contact{background:var(--navy);color:#fff;padding:8px 12px}
+  .btn-contact-add{background:var(--orange);color:#fff;padding:8px 12px}
+  .contacts-panel{display:none;margin-top:10px;border:1px solid var(--border);border-radius:12px;background:#fff;padding:10px}
+  .contacts-search{width:100%;padding:10px;border:1px solid var(--border);border-radius:9px;font-family:inherit;margin-bottom:9px}
+  .contacts-list{display:flex;flex-direction:column;gap:7px;max-height:240px;overflow:auto}
+  .contact-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px;border:1px solid var(--border);border-radius:9px;background:#fdfcf9}
+  .contact-info{min-width:0;cursor:pointer;flex:1}
+  .contact-name{font-weight:800}.contact-phone{font-size:12px;color:var(--muted-2);margin-top:2px}
+  .contact-actions{display:flex;gap:5px}.contact-edit,.contact-delete{padding:7px 9px}
+  .contact-edit{background:#eee;color:var(--navy)}.contact-delete{background:var(--danger-bg);color:var(--danger)}
+  .contact-empty{text-align:center;color:var(--muted-2);padding:14px}
+  .contact-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;padding:16px}
+  .contact-modal-card{width:min(440px,100%);background:#fff;border-radius:16px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+  .contact-modal-actions{display:flex;gap:8px;margin-top:15px}
+
 </style>
 </head>
 <body>
@@ -490,6 +507,18 @@
       <div class="field">
         <label>اسم العميل</label>
         <input type="text" id="clientName" placeholder="اسم العميل">
+        <div class="client-contact-tools">
+          <button type="button" class="btn-contact" onclick="toggleContactsPanel()">📒 جهات الاتصال</button>
+          <button type="button" class="btn-contact-add" onclick="openContactModal()">＋ إضافة جهة اتصال</button>
+        </div>
+        <div id="contactsPanel" class="contacts-panel">
+          <input id="contactsSearch" class="contacts-search" type="search" placeholder="ابحث بالاسم أو رقم العميل">
+          <div id="contactsList" class="contacts-list"></div>
+        </div>
+      </div>
+      <div class="field">
+        <label>رقم العميل</label>
+        <input type="tel" id="clientPhone" placeholder="رقم العميل">
       </div>
       <div class="field">
         <label>رقم الفاتورة</label>
@@ -552,6 +581,7 @@
       <div class="inv-title">فاتورة</div>
       <div class="inv-meta">
         <div><b>العميل:</b> <span id="pClient">—</span></div>
+        <div><b>رقم العميل:</b> <span id="pClientPhone">—</span></div>
         <div><b>رقم الفاتورة:</b> <span id="pInvNo">—</span></div>
         <div><b>التاريخ:</b> <span id="pDate">—</span></div>
       </div>
@@ -778,14 +808,119 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLI
 let currentInvoiceId = null;
 let invoiceDisplayDate = "";
 
+
+/* =========================================================
+   جهات اتصال العملاء — Supabase
+   ========================================================= */
+let clientsCache = [];
+let selectedClientId = null;
+
+async function loadClients(){
+  const r=await supabaseClient.from("clients").select("id,name,phone,notes,created_at,updated_at").order("name",{ascending:true});
+  if(r.error){ console.error("loadClients:",r.error); return; }
+  clientsCache=r.data||[];
+  renderContacts(document.getElementById("contactsSearch")?.value||"");
+}
+
+function renderContacts(term=""){
+  const list=document.getElementById("contactsList");
+  if(!list) return;
+  const q=String(term||"").trim().toLowerCase();
+  const rows=clientsCache.filter(c=>!q || String(c.name||"").toLowerCase().includes(q) || String(c.phone||"").toLowerCase().includes(q));
+  if(!rows.length){ list.innerHTML='<div class="contact-empty">لا توجد جهات اتصال محفوظة.</div>'; return; }
+  list.innerHTML=rows.map(c=>`
+    <div class="contact-row">
+      <div class="contact-info" onclick="chooseClient('${c.id}')">
+        <div class="contact-name">${escapeHtml(c.name||"بدون اسم")}</div>
+        <div class="contact-phone">${escapeHtml(c.phone||"بدون رقم")}</div>
+      </div>
+      <div class="contact-actions">
+        <button type="button" class="contact-edit" onclick="openContactModal('${c.id}')">تعديل</button>
+        <button type="button" class="contact-delete" onclick="deleteContact('${c.id}')">حذف</button>
+      </div>
+    </div>`).join("");
+}
+
+function toggleContactsPanel(){
+  const panel=document.getElementById("contactsPanel");
+  if(!panel) return;
+  const opening=getComputedStyle(panel).display==="none";
+  panel.style.display=opening?"block":"none";
+  if(opening) loadClients();
+}
+
+function chooseClient(id){
+  const c=clientsCache.find(x=>x.id===id);
+  if(!c) return;
+  selectedClientId=c.id;
+  document.getElementById("clientName").value=c.name||"";
+  document.getElementById("clientPhone").value=c.phone||"";
+  document.getElementById("contactsPanel").style.display="none";
+  renderInvoice();
+}
+
+function openContactModal(id=""){
+  const modal=document.getElementById("contactModal");
+  if(!modal) return;
+  document.getElementById("contactId").value=id||"";
+  if(id){
+    const c=clientsCache.find(x=>x.id===id);
+    if(!c) return;
+    document.getElementById("contactName").value=c.name||"";
+    document.getElementById("contactPhone").value=c.phone||"";
+    document.getElementById("contactNotes").value=c.notes||"";
+  }else{
+    document.getElementById("contactName").value=document.getElementById("clientName").value.trim();
+    document.getElementById("contactPhone").value=document.getElementById("clientPhone").value.trim();
+    document.getElementById("contactNotes").value="";
+  }
+  modal.style.display="flex";
+}
+
+function closeContactModal(){
+  const modal=document.getElementById("contactModal");
+  if(modal) modal.style.display="none";
+}
+
+async function saveContact(){
+  const id=document.getElementById("contactId").value;
+  const name=document.getElementById("contactName").value.trim();
+  const phone=document.getElementById("contactPhone").value.trim();
+  const notes=document.getElementById("contactNotes").value.trim();
+  if(!name){ alert("اكتب اسم العميل."); return; }
+  const payload={name,phone,notes};
+  let r;
+  if(id) r=await supabaseClient.from("clients").update(payload).eq("id",id).select().single();
+  else r=await supabaseClient.from("clients").insert(payload).select().single();
+  if(r.error){ console.error("saveContact:",r.error); alert("تعذر حفظ جهة الاتصال."); return; }
+  await loadClients();
+  selectedClientId=r.data.id;
+  document.getElementById("clientName").value=r.data.name||"";
+  document.getElementById("clientPhone").value=r.data.phone||"";
+  closeContactModal();
+  renderInvoice();
+}
+
+async function deleteContact(id){
+  const c=clientsCache.find(x=>x.id===id);
+  if(!confirm("حذف جهة اتصال "+(c?.name||"هذا العميل")+"؟")) return;
+  const r=await supabaseClient.from("clients").delete().eq("id",id);
+  if(r.error){ console.error("deleteContact:",r.error); alert("تعذر حذف جهة الاتصال."); return; }
+  if(selectedClientId===id) selectedClientId=null;
+  await loadClients();
+}
+
 function getInvoicePayload(){
   const clientName = document.getElementById("clientName")?.value.trim() || "";
+  const clientPhone = document.getElementById("clientPhone")?.value.trim() || "";
   const notes = document.getElementById("notesInput")?.value.trim() || "";
   const subtotal = calculateSubtotal();
   const discountAmount = calculateDiscountAmount();
   return {
     invoice_number: invoiceNumber,
+    client_id: selectedClientId || null,
     client_name: clientName,
+    client_phone: clientPhone,
     notes,
     discount_percent: Number(discountPercent) || 0,
     subtotal,
@@ -913,11 +1048,13 @@ async function openInvoiceFromHistory(id){
     if(ir.error) throw ir.error;
     const invoice=r.data;
     currentInvoiceId=invoice.id;
+    selectedClientId=invoice.client_id||null;
     invoiceNumber=invoice.invoice_number;
     invoiceDisplayDate=invoice.created_at||"";
     document.getElementById("invoiceNoDisplay").textContent=invoiceNumber;
     document.getElementById("dateDisplay").textContent=formatDateFromValue(invoice.created_at);
     document.getElementById("clientName").value=invoice.client_name||"";
+    document.getElementById("clientPhone").value=invoice.client_phone||"";
     document.getElementById("notesInput").value=invoice.notes||"";
     discountPercent=Number(invoice.discount_percent)||0;
     document.getElementById("discountPercent").value=discountPercent;
@@ -956,6 +1093,8 @@ function startNewInvoice(scroll=true){
   discountPercent=0;
   invoiceDisplayDate="";
   document.getElementById("clientName").value="";
+  document.getElementById("clientPhone").value="";
+  selectedClientId=null;
   document.getElementById("notesInput").value="";
   document.getElementById("discountPercent").value="0";
   generateInvoiceNumber();
@@ -1525,6 +1664,7 @@ function renderItems(){
 
 function renderInvoice(){
   document.getElementById("pClient").textContent = document.getElementById("clientName").value.trim() || "—";
+  document.getElementById("pClientPhone").textContent = document.getElementById("clientPhone").value.trim() || "—";
   document.getElementById("pInvNo").textContent = invoiceNumber;
   document.getElementById("pDate").textContent = invoiceDisplayDate ? formatDateFromValue(invoiceDisplayDate) : formatDate();
 
@@ -1613,7 +1753,20 @@ function preparePrintInvoice(){
     </style>
   </head><body>
     <div class="invoice-print-wrap">${source.outerHTML}</div>
-  </body></html>`);
+  <div id="contactModal" class="contact-modal">
+  <div class="contact-modal-card">
+    <h3 style="margin-top:0">جهة اتصال العميل</h3>
+    <input type="hidden" id="contactId">
+    <div class="field"><label>اسم العميل</label><input type="text" id="contactName" placeholder="اسم العميل"></div>
+    <div class="field" style="margin-top:10px"><label>رقم العميل</label><input type="tel" id="contactPhone" placeholder="رقم العميل"></div>
+    <div class="field" style="margin-top:10px"><label>ملاحظات</label><textarea id="contactNotes" placeholder="ملاحظات عن العميل"></textarea></div>
+    <div class="contact-modal-actions">
+      <button type="button" class="btn-contact-add" onclick="saveContact()">💾 حفظ</button>
+      <button type="button" class="btn-clear" onclick="closeContactModal()">إلغاء</button>
+    </div>
+  </div>
+</div>
+</body></html>`);
   printWindow.document.close();
 
   return printWindow;
@@ -1816,7 +1969,10 @@ function init(){
   document.getElementById("invoiceNoDisplay").textContent = invoiceNumber;
   document.getElementById("dateDisplay").textContent = invoiceDisplayDate ? formatDateFromValue(invoiceDisplayDate) : formatDate();
 
-  document.getElementById("clientName").addEventListener("input", renderInvoice);
+  document.getElementById("clientName").addEventListener("input", () => { selectedClientId=null; renderInvoice(); });
+  document.getElementById("clientPhone").addEventListener("input", () => { selectedClientId=null; renderInvoice(); });
+  document.getElementById("contactsSearch").addEventListener("input", e => renderContacts(e.target.value));
+  loadClients();
   document.getElementById("notesInput").addEventListener("input", renderInvoice);
   document.getElementById("invoiceHistorySearch").addEventListener("input", e => renderInvoiceHistory(e.target.value));
   updateHistoryCurrent();
