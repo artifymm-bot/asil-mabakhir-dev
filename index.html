@@ -453,6 +453,12 @@
   .history-new{background:var(--orange);color:#fff}
   .history-empty{text-align:center;padding:25px;color:var(--muted-2);border:1.5px dashed var(--border);border-radius:12px}
   .history-loading{text-align:center;padding:20px;color:var(--muted-2)}
+  .history-status{display:inline-flex;align-items:center;gap:5px;margin-top:7px;padding:5px 9px;border-radius:8px;font-size:12px;font-weight:800}
+  .history-status.draft{background:#f3efe4;color:var(--navy)}
+  .history-status.preparing{background:#fff2e0;color:#9a5a16}
+  .history-status.completed{background:#e8f6ea;color:#28752e}
+  .history-prep-btn{background:var(--orange);color:#fff}
+  .history-prep-btn:disabled{opacity:.65;cursor:default}
   /* ================= جهات اتصال العملاء ================= */
   .client-contact-tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
   .btn-contact{background:var(--navy);color:#fff;padding:8px 12px}
@@ -508,12 +514,12 @@
   </header>
 
   <div class="history-toggle-row">
-    <button type="button" class="btn-history" onclick="toggleInvoiceHistory()">🧾 الفواتير السابقة</button>
+    <button type="button" class="btn-history" onclick="toggleInvoiceHistory()">🧾 الفواتير</button>
   </div>
 
   <section class="card" id="invoiceHistoryCard" style="display:none;">
     <div class="toolbar-row">
-      <h2 style="margin:0;">الفواتير السابقة</h2>
+      <h2 style="margin:0;">الفواتير المحفوظة</h2>
       <div class="history-actions" style="margin-top:0">
         <button type="button" class="history-new" onclick="startNewInvoice(true)">＋ فاتورة جديدة</button>
         <button type="button" class="btn-history" onclick="loadInvoiceHistory()">↻ تحديث</button>
@@ -536,14 +542,12 @@
       <h2 style="margin:0;">📦 الطلبات والتحضير</h2>
       <button type="button" class="btn-history" onclick="loadOrders()">↻ تحديث</button>
     </div>
-    <p class="order-create-note">لإنشاء طلبية: جهّز الأصناف في الفاتورة الحالية ثم اضغط «إرسال للتحضير». المحضر يرى اسم الصنف والكود والكمية فقط، بدون الأسعار.</p>
+    <p class="order-create-note">بعد موافقة العميل، افتح الفاتورة المطلوبة من «الفواتير» واضغط «إرسال للتحضير». ستظهر للمحضر مباشرة بدون الأسعار.</p>
     <div class="orders-toolbar">
       <select id="ordersFilter" class="orders-filter" onchange="renderOrders()">
         <option value="all">كل الطلبات</option>
-        <option value="new">جديدة</option>
         <option value="preparing">جاري التحضير</option>
         <option value="completed">تم التحضير</option>
-        <option value="invoiced">تم تحويلها لفاتورة</option>
       </select>
     </div>
     <div id="ordersList" class="orders-list"><div class="history-loading">جارٍ تحميل الطلبات...</div></div>
@@ -1021,11 +1025,6 @@ async function saveCurrentInvoiceToSupabase(){
   if(i.error) throw i.error;
 
   updateHistoryCurrent();
-  if(currentOrderId){
-    const orderUpdate=await supabaseClient.from("orders").update({status:"invoiced",invoice_id:invoice.id}).eq("id",currentOrderId);
-    if(orderUpdate.error) console.error("mark order invoiced:",orderUpdate.error);
-    currentOrderId=null;
-  }
   return invoice.id;
 }
 
@@ -1060,44 +1059,56 @@ async function loadInvoiceHistory(){
   const list=document.getElementById("invoiceHistoryList");
   if(!list) return;
   list.innerHTML='<div class="history-loading">جارٍ تحميل الفواتير...</div>';
-  const r=await supabaseClient.from("invoices").select("id,invoice_number,client_name,total,created_at,updated_at").order("created_at",{ascending:false}).limit(200);
-  if(r.error){
-    console.error("loadInvoiceHistory:",r.error);
-    list.innerHTML='<div class="history-empty">تعذر تحميل الفواتير السابقة. تأكد من اتصال Supabase.</div>';
-    return;
-  }
-  window.__invoiceHistory=r.data||[];
-  renderInvoiceHistory(document.getElementById("invoiceHistorySearch")?.value||"");
+  try{
+    const r=await supabaseClient.from("invoices").select("id,invoice_number,client_name,total,created_at,updated_at,orders(id,status,completed_at,created_at)").order("created_at",{ascending:false}).limit(200);
+    if(r.error) throw r.error;
+    window.__invoiceHistory=r.data||[];
+    renderInvoiceHistory(document.getElementById("invoiceHistorySearch")?.value||"");
+  }catch(err){console.error("loadInvoiceHistory:",err);list.innerHTML='<div class="history-empty">تعذر تحميل الفواتير. تأكد من اتصال Supabase.</div>';}
 }
-
+function getInvoicePreparationRecord(inv){
+  const rows=Array.isArray(inv?.orders)?inv.orders:(inv?.orders?[inv.orders]:[]);
+  return rows.length?rows.slice().sort((x,y)=>new Date(y.created_at||0)-new Date(x.created_at||0))[0]:null;
+}
+function invoicePreparationLabel(inv){const o=getInvoicePreparationRecord(inv);return o?.status==="preparing"?"جاري التحضير":o?.status==="completed"?"تم التحضير":"مسودة / جاهزة للإرسال";}
+function invoicePreparationClass(inv){const o=getInvoicePreparationRecord(inv);return o?.status==="preparing"?"preparing":o?.status==="completed"?"completed":"draft";}
+function invoicePreparationButton(inv){
+  const o=getInvoicePreparationRecord(inv);
+  if(o?.status==="preparing")return '<button type="button" class="history-prep-btn" disabled>⏳ جاري التحضير</button>';
+  if(o?.status==="completed")return '<button type="button" class="history-prep-btn" disabled>✓ تم التحضير</button>';
+  return '<button type="button" class="history-prep-btn" onclick="sendInvoiceFromHistoryToPreparation(&quot;'+inv.id+'&quot;)">📦 إرسال للتحضير</button>';
+}
 function renderInvoiceHistory(term=""){
-  const list=document.getElementById("invoiceHistoryList");
-  if(!list) return;
+  const list=document.getElementById("invoiceHistoryList");if(!list)return;
   const q=String(term||"").trim().toLowerCase();
-  const rows=(window.__invoiceHistory||[]).filter(inv =>
-    !q ||
-    String(inv.invoice_number||"").toLowerCase().includes(q) ||
-    String(inv.client_name||"").toLowerCase().includes(q)
-  );
-  if(!rows.length){
-    list.innerHTML='<div class="history-empty">لا توجد فواتير محفوظة.</div>';
-    return;
-  }
-  list.innerHTML=rows.map(inv => `
-    <div class="history-row">
-      <div class="history-row-main">
-        <div>
-          <div class="history-number">فاتورة رقم ${escapeHtml(inv.invoice_number)}</div>
-          <div class="history-client">العميل: ${escapeHtml(inv.client_name||"بدون اسم")}</div>
-          <div class="history-meta">التاريخ: ${escapeHtml(formatHistoryDate(inv.created_at))} — آخر تعديل: ${escapeHtml(formatHistoryDate(inv.updated_at||inv.created_at))}</div>
-        </div>
-        <div class="history-total">${formatMoney(inv.total)}</div>
-      </div>
-      <div class="history-actions">
-        <button type="button" class="history-open" onclick="openInvoiceFromHistory('${inv.id}')">فتح وتعديل</button>
-        <button type="button" class="history-delete" onclick="deleteInvoiceFromHistory('${inv.id}')">حذف</button>
-      </div>
-    </div>`).join("");
+  const rows=(window.__invoiceHistory||[]).filter(inv=>!q||String(inv.invoice_number||"").toLowerCase().includes(q)||String(inv.client_name||"").toLowerCase().includes(q));
+  if(!rows.length){list.innerHTML='<div class="history-empty">لا توجد فواتير محفوظة.</div>';return;}
+  list.innerHTML=rows.map(inv=>{
+    const label=invoicePreparationLabel(inv),cls=invoicePreparationClass(inv);
+    return `<div class="history-row"><div class="history-row-main"><div><div class="history-number">فاتورة رقم ${escapeHtml(inv.invoice_number)}</div><div class="history-client">العميل: ${escapeHtml(inv.client_name||"بدون اسم")}</div><div class="history-meta">التاريخ: ${escapeHtml(formatHistoryDate(inv.created_at))} — آخر تعديل: ${escapeHtml(formatHistoryDate(inv.updated_at||inv.created_at))}</div><span class="history-status ${cls}">الحالة: ${escapeHtml(label)}</span></div><div class="history-total">${formatMoney(inv.total)}</div></div><div class="history-actions"><button type="button" class="history-open" onclick="openInvoiceFromHistory(&quot;${inv.id}&quot;)">فتح وتعديل</button>${invoicePreparationButton(inv)}<button type="button" class="history-delete" onclick="deleteInvoiceFromHistory(&quot;${inv.id}&quot;)">حذف</button></div></div>`;
+  }).join("");
+}
+async function sendInvoiceFromHistoryToPreparation(id){
+  try{
+    const inv=(window.__invoiceHistory||[]).find(x=>x.id===id);if(!inv)throw new Error("الفاتورة غير موجودة");
+    const ex=await supabaseClient.from("orders").select("id,status").eq("invoice_id",id).order("created_at",{ascending:false}).limit(1).maybeSingle();
+    if(ex.error)throw ex.error;
+    if(ex.data?.status==="preparing"){alert("هذه الفاتورة موجودة بالفعل في جاري التحضير.");return;}
+    if(ex.data?.status==="completed"){alert("هذه الفاتورة تم تحضيرها بالفعل.");return;}
+    const ir=await supabaseClient.from("invoices").select("client_id,client_phone,notes").eq("id",id).single();if(ir.error)throw ir.error;
+    let orderId=ex.data?.id||null;
+    if(orderId){
+      const q=await supabaseClient.from("orders").update({order_number:inv.invoice_number,client_id:ir.data.client_id||null,client_name:inv.client_name||"",client_phone:ir.data.client_phone||"",notes:ir.data.notes||"",status:"preparing",completed_at:null}).eq("id",orderId);if(q.error)throw q.error;
+    }else{
+      const q=await supabaseClient.from("orders").insert({order_number:inv.invoice_number,invoice_id:id,client_id:ir.data.client_id||null,client_name:inv.client_name||"",client_phone:ir.data.client_phone||"",notes:ir.data.notes||"",status:"preparing"}).select().single();if(q.error)throw q.error;orderId=q.data.id;
+    }
+    const itemsRes=await supabaseClient.from("invoice_items").select("product_id,code,name,quantity,notes,sort_order").eq("invoice_id",id).order("sort_order",{ascending:true});
+    if(itemsRes.error)throw itemsRes.error;if(!itemsRes.data?.length)throw new Error("الفاتورة لا تحتوي على أصناف.");
+    const dr=await supabaseClient.from("order_items").delete().eq("order_id",orderId);if(dr.error)throw dr.error;
+    const or=await supabaseClient.from("order_items").insert(itemsRes.data.map((x,i)=>({order_id:orderId,product_id:x.product_id||null,code:x.code||"",name:x.name||"",quantity:Number(x.quantity)||1,notes:x.notes||"",sort_order:i})));if(or.error)throw or.error;
+    await loadInvoiceHistory();if(getComputedStyle(document.getElementById("ordersCard")).display!=="none")await loadOrders();
+    alert("تم إرسال الفاتورة رقم "+inv.invoice_number+" إلى وضع المحضر — جاري التحضير.");
+  }catch(err){console.error("sendInvoiceFromHistoryToPreparation:",err);alert("تعذر إرسال الفاتورة للتحضير. تأكد من حفظ الفاتورة وبها أصناف.");}
 }
 
 async function openInvoiceFromHistory(id){
@@ -1108,6 +1119,7 @@ async function openInvoiceFromHistory(id){
     if(ir.error) throw ir.error;
     const invoice=r.data;
     currentInvoiceId=invoice.id;
+    currentOrderId=null;
     selectedClientId=invoice.client_id||null;
     invoiceNumber=invoice.invoice_number;
     invoiceDisplayDate=invoice.created_at||"";
@@ -1135,19 +1147,17 @@ async function openInvoiceFromHistory(id){
 }
 
 async function deleteInvoiceFromHistory(id){
-  if(!confirm("هل تريد حذف هذه الفاتورة نهائيًا؟")) return;
-  const r=await supabaseClient.from("invoices").delete().eq("id",id);
-  if(r.error){
-    console.error("deleteInvoiceFromHistory:",r.error);
-    alert("تعذر حذف الفاتورة.");
-    return;
-  }
-  if(currentInvoiceId===id) currentInvoiceId=null;
-  await loadInvoiceHistory();
+  const inv=(window.__invoiceHistory||[]).find(x=>x.id===id);const prep=getInvoicePreparationRecord(inv);
+  if(prep?.status==="preparing"){alert("لا يمكن حذف فاتورة جاري تحضيرها.");return;}
+  if(prep?.status==="completed"){alert("لا يمكن حذف فاتورة تم تحضيرها.");return;}
+  if(!confirm("هل تريد حذف هذه الفاتورة نهائيًا؟"))return;
+  const q=await supabaseClient.from("invoices").delete().eq("id",id);if(q.error){console.error("deleteInvoiceFromHistory:",q.error);alert("تعذر حذف الفاتورة.");return;}
+  if(currentInvoiceId===id)currentInvoiceId=null;await loadInvoiceHistory();
 }
 
 function startNewInvoice(scroll=true){
   currentInvoiceId=null;
+  currentOrderId=null;
   items=[];
   nextId=1;
   discountPercent=0;
@@ -1672,12 +1682,8 @@ function updateRowTotal(id){
 }
 
 function clearInvoice(){
-  if(items.length === 0) return;
-  if(confirm("مسح جميع الأصناف؟")){
-    items = [];
-    renderItems();
-    renderInvoice();
-  }
+  if(items.length===0)return;
+  if(confirm("مسح جميع الأصناف؟")){items=[];currentInvoiceId=null;currentOrderId=null;renderItems();renderInvoice();updateHistoryCurrent();}
 }
 
 /* =========================================================
@@ -2045,8 +2051,7 @@ let ordersRealtimeChannel = null;
 const ORDER_STATUS_LABELS = {
   new: "جديدة",
   preparing: "جاري التحضير",
-  completed: "تم التحضير",
-  invoiced: "تم تحويلها لفاتورة"
+  completed: "تم التحضير"
 };
 
 function formatOrderDate(value){
@@ -2080,40 +2085,26 @@ function getOrderPayload(){
 }
 
 async function createOrderFromCurrentInvoice(){
-  const validItems=items.filter(i=>i.code);
-  if(!validItems.length){ alert("أضف صنفًا واحدًا على الأقل قبل إرسال الطلبية للتحضير."); return; }
-  const payload=getOrderPayload();
-  if(!payload.client_name && !confirm("لم تكتب اسم العميل. هل تريد إنشاء الطلبية بدون اسم؟")) return;
-
+  if(!items.some(i=>i.code)){alert("أضف صنفًا واحدًا على الأقل قبل الإرسال للتحضير.");return;}
   try{
-    const orderNumber="ORD-"+Date.now().toString().slice(-7);
-    const r=await supabaseClient.from("orders").insert(Object.assign({order_number:orderNumber,status:"new"},payload)).select().single();
-    if(r.error) throw r.error;
-
-    const rows=validItems.map((item,index)=>{
-      const product=getProducts().find(p=>p.code===item.code);
-      return {
-        order_id:r.data.id,
-        product_id:product?.id || null,
-        code:item.code || "",
-        name:item.name || product?.name || "",
-        quantity:Number(item.qty)||1,
-        notes:item.notes || "",
-        sort_order:index
-      };
-    });
-    const ir=await supabaseClient.from("order_items").insert(rows);
-    if(ir.error){
-      await supabaseClient.from("orders").delete().eq("id",r.data.id);
-      throw ir.error;
+    if(!currentInvoiceId){const savedId=await saveCurrentInvoiceToSupabase();if(!savedId){alert("تعذر حفظ الفاتورة قبل إرسالها للتحضير.");return;}}
+    const id=currentInvoiceId;
+    const inv=await supabaseClient.from("invoices").select("invoice_number,client_id,client_name,client_phone,notes").eq("id",id).single();if(inv.error)throw inv.error;
+    const ex=await supabaseClient.from("orders").select("id,status").eq("invoice_id",id).order("created_at",{ascending:false}).limit(1).maybeSingle();if(ex.error)throw ex.error;
+    if(ex.data?.status==="preparing"){alert("هذه الفاتورة موجودة بالفعل في جاري التحضير.");return;}
+    if(ex.data?.status==="completed"){alert("هذه الفاتورة تم تحضيرها بالفعل.");return;}
+    let orderId=ex.data?.id||null;
+    if(orderId){
+      const q=await supabaseClient.from("orders").update({order_number:inv.data.invoice_number,client_id:inv.data.client_id||null,client_name:inv.data.client_name||"",client_phone:inv.data.client_phone||"",notes:inv.data.notes||"",status:"preparing",completed_at:null}).eq("id",orderId);if(q.error)throw q.error;
+    }else{
+      const q=await supabaseClient.from("orders").insert({order_number:inv.data.invoice_number,invoice_id:id,client_id:inv.data.client_id||null,client_name:inv.data.client_name||"",client_phone:inv.data.client_phone||"",notes:inv.data.notes||"",status:"preparing"}).select().single();if(q.error)throw q.error;orderId=q.data.id;
     }
-    await loadOrders();
-    document.getElementById("ordersCard").style.display="block";
-    alert("تم إرسال الطلبية "+orderNumber+" للتحضير.");
-  }catch(err){
-    console.error("createOrderFromCurrentInvoice:",err);
-    alert("تعذر إرسال الطلبية للتحضير.");
-  }
+    const dr=await supabaseClient.from("order_items").delete().eq("order_id",orderId);if(dr.error)throw dr.error;
+    const rows=items.filter(x=>x.code).map((x,i)=>{const p=getProducts().find(y=>y.code===x.code);return {order_id:orderId,product_id:p?.id||null,code:x.code||"",name:x.name||p?.name||"",quantity:Number(x.qty)||1,notes:x.notes||"",sort_order:i};});
+    const ir=await supabaseClient.from("order_items").insert(rows);if(ir.error)throw ir.error;
+    await loadInvoiceHistory();document.getElementById("ordersCard").style.display="block";await loadOrders();
+    alert("تم إرسال الفاتورة رقم "+inv.data.invoice_number+" للتحضير.");
+  }catch(err){console.error("createOrderFromCurrentInvoice:",err);alert("تعذر إرسال الفاتورة للتحضير.");}
 }
 
 async function loadOrders(){
@@ -2134,106 +2125,32 @@ async function loadOrders(){
 }
 
 function renderOrders(){
-  const list=document.getElementById("ordersList");
-  if(!list) return;
-  const filter=document.getElementById("ordersFilter")?.value||"all";
-  const rows=ordersCache.filter(o=>filter==="all" || o.status===filter);
-  if(!rows.length){
-    list.innerHTML='<div class="history-empty">لا توجد طلبات في هذه الحالة.</div>';
-    return;
-  }
-
+  const list=document.getElementById("ordersList");if(!list)return;
+  const filter=document.getElementById("ordersFilter")?.value||"all";const rows=ordersCache.filter(o=>filter==="all"||o.status===filter);
+  if(!rows.length){list.innerHTML='<div class="history-empty">لا توجد فواتير في هذه الحالة.</div>';return;}
   list.innerHTML=rows.map(o=>{
     const sorted=(o.order_items||[]).slice().sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
     const itemsHtml=sorted.map(i=>'<div class="order-item-line"><span><b>'+escapeHtml(i.code||"—")+'</b> — '+escapeHtml(i.name||"—")+'</span><span>× '+escapeHtml(String(i.quantity??1))+'</span></div>').join("");
-    const status=ORDER_STATUS_LABELS[o.status]||o.status;
-    const completed=o.completed_at ? " — خلصت: "+formatOrderDate(o.completed_at) : "";
-    let actions="";
-    if(o.status==="new") actions+='<button type="button" class="order-action-primary" onclick="setOrderStatus(\\''+o.id+'\\',\\'preparing\\')">▶ بدء التحضير</button>';
-    if(o.status==="preparing") actions+='<button type="button" class="order-action-complete" onclick="completeOrder(\\''+o.id+'\\')">✓ تم التحضير</button>';
-    if(o.status==="completed") actions+='<button type="button" class="order-action-invoice" onclick="convertOrderToInvoice(\\''+o.id+'\\')">🧾 تحويل إلى فاتورة</button>';
-    if(o.status!=="invoiced") actions+='<button type="button" class="order-action-delete" onclick="deleteOrder(\\''+o.id+'\\')">حذف</button>';
-    return '<div class="order-row">'+
-      '<div class="order-row-main"><div>'+
-      '<div class="order-number">طلبية '+escapeHtml(o.order_number)+'</div>'+
-      '<div class="order-client">العميل: '+escapeHtml(o.client_name||"بدون اسم")+'</div>'+
-      '<div class="order-meta">'+(o.client_phone ? "رقم العميل: "+escapeHtml(o.client_phone)+" — " : "")+"الحالة: "+escapeHtml(status)+completed+'</div>'+
-      '</div><span class="order-status '+orderStatusClass(o.status)+'">'+escapeHtml(status)+'</span></div>'+
-      '<div class="order-items-preview">'+itemsHtml+'</div>'+
-      '<div class="order-actions">'+actions+'</div></div>';
+    const status=ORDER_STATUS_LABELS[o.status]||o.status;const completed=o.completed_at?" — خلصت: "+formatOrderDate(o.completed_at):"";
+    let actions="";if(o.status==="preparing")actions+='<button type="button" class="order-action-complete" onclick="completeOrder(&quot;'+o.id+'&quot;)">✓ تم التحضير</button>';if(o.status==="completed")actions+='<span class="history-status completed">✓ تم التحضير</span>';actions+='<button type="button" class="order-action-delete" onclick="deleteOrder(&quot;'+o.id+'&quot;)">حذف</button>';
+    return '<div class="order-row"><div class="order-row-main"><div><div class="order-number">فاتورة '+escapeHtml(o.order_number)+'</div><div class="order-client">العميل: '+escapeHtml(o.client_name||"بدون اسم")+'</div><div class="order-meta">'+(o.client_phone?"رقم العميل: "+escapeHtml(o.client_phone)+" — ":"")+"الحالة: "+escapeHtml(status)+completed+'</div></div><span class="order-status '+orderStatusClass(o.status)+'">'+escapeHtml(status)+'</span></div><div class="order-items-preview">'+itemsHtml+'</div><div class="order-actions">'+actions+'</div></div>';
   }).join("");
 }
-
 async function setOrderStatus(id,status){
-  try{
-    const r=await supabaseClient.from("orders").update({
-      status:status,
-      completed_at:status==="completed" ? new Date().toISOString() : null
-    }).eq("id",id);
-    if(r.error) throw r.error;
-    await loadOrders();
-  }catch(err){
-    console.error("setOrderStatus:",err);
-    alert("تعذر تحديث حالة الطلبية.");
-  }
+  try{const q=await supabaseClient.from("orders").update({status:status,completed_at:status==="completed"?new Date().toISOString():null}).eq("id",id);if(q.error)throw q.error;await loadOrders();if(getComputedStyle(document.getElementById("invoiceHistoryCard")).display!=="none")await loadInvoiceHistory();}
+  catch(err){console.error("setOrderStatus:",err);alert("تعذر تحديث حالة التحضير.");}
 }
-
-async function completeOrder(id){ await setOrderStatus(id,"completed"); }
-
+async function completeOrder(id){await setOrderStatus(id,"completed");}
 async function deleteOrder(id){
-  const order=ordersCache.find(o=>o.id===id);
-  if(!order) return;
-  if(!confirm("حذف الطلبية "+(order.order_number||"")+"؟")) return;
-  try{
-    const r=await supabaseClient.from("orders").delete().eq("id",id);
-    if(r.error) throw r.error;
-    await loadOrders();
-  }catch(err){
-    console.error("deleteOrder:",err);
-    alert("تعذر حذف الطلبية.");
-  }
-}
-
-async function convertOrderToInvoice(id){
-  const order=ordersCache.find(o=>o.id===id);
-  if(!order) return;
-  const orderItems=(order.order_items||[]).slice().sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
-  if(!orderItems.length){ alert("الطلبية لا تحتوي على أصناف."); return; }
-
-  items=orderItems.map(i=>{
-    const product=getProducts().find(p=>p.code===i.code);
-    return {
-      id:nextId++,
-      code:i.code||"",
-      name:i.name || product?.name || "",
-      price:Number(product?.price)||0,
-      qty:Number(i.quantity)||1,
-      notes:i.notes||"",
-      image:product?.image||""
-    };
-  });
-  currentInvoiceId=null;
-  currentOrderId=id;
-  invoiceDisplayDate="";
-  generateInvoiceNumber();
-  document.getElementById("invoiceNoDisplay").textContent=invoiceNumber;
-  document.getElementById("dateDisplay").textContent=formatDate();
-  document.getElementById("clientName").value=order.client_name||"";
-  document.getElementById("clientPhone").value=order.client_phone||"";
-  document.getElementById("notesInput").value=order.notes||"";
-  selectedClientId=order.client_id||null;
-  discountPercent=0;
-  document.getElementById("discountPercent").value="0";
-  renderItems();
-  renderInvoice();
-  window.scrollTo({top:0,behavior:"smooth"});
-  alert("تم تحميل الطلبية كفاتورة جديدة. راجعها ثم اضغط «حفظ الفاتورة».");
+  const order=ordersCache.find(o=>o.id===id);if(!order)return;if(!confirm("حذف سجل التحضير للفاتورة "+(order.order_number||"")+"؟"))return;
+  const q=await supabaseClient.from("orders").delete().eq("id",id);if(q.error){console.error("deleteOrder:",q.error);alert("تعذر حذف سجل التحضير.");return;}
+  await loadOrders();if(getComputedStyle(document.getElementById("invoiceHistoryCard")).display!=="none")await loadInvoiceHistory();
 }
 
 function setupOrdersRealtime(){
   if(ordersRealtimeChannel || !supabaseClient) return;
   ordersRealtimeChannel=supabaseClient.channel("orders-live")
-    .on("postgres_changes",{event:"*",schema:"public",table:"orders"},()=>loadOrders())
+    .on("postgres_changes",{event:"*",schema:"public",table:"orders"},async()=>{await loadOrders();if(getComputedStyle(document.getElementById("invoiceHistoryCard")).display!=="none")await loadInvoiceHistory();})
     .subscribe(status=>console.log("orders realtime:",status));
 }
 
