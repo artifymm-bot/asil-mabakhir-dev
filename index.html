@@ -274,6 +274,14 @@
     font-size: 16px;
   }
 
+  .app-subscreen{position:fixed;inset:0;z-index:9998;display:none;overflow:auto;background:var(--bg);padding:20px 16px 50px}
+  .app-subscreen.open{display:block}
+  .subscreen-head{max-width:980px;margin:0 auto 18px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:linear-gradient(135deg,var(--navy),var(--navy-2));color:#fff;border-radius:16px;padding:18px 20px;box-shadow:0 6px 20px rgba(28,43,74,.18)}
+  .subscreen-title{font-size:20px;font-weight:800}
+  .subscreen-subtitle{font-size:12.5px;color:#d9e0ee;margin-top:3px}
+  .subscreen-back{background:#fff;color:var(--navy);border:0;padding:9px 13px;border-radius:9px;font-weight:800;cursor:pointer}
+  .app-subscreen > .card{max-width:980px;margin:0 auto}
+  @media (max-width:640px){.app-subscreen{padding:10px 10px 30px}.subscreen-head{padding:15px}.subscreen-title{font-size:18px}}
   .shipping-entry-row{display:flex;justify-content:flex-start;gap:10px;flex-wrap:wrap;margin:0 0 14px}
   .btn-shipping-entry{background:var(--navy);color:#fff;padding:11px 18px;border:0;border-radius:10px;font-weight:800;cursor:pointer}
   .shipping-screen{position:fixed;inset:0;z-index:10000;display:none;overflow:auto;background:var(--bg);padding:20px 16px 50px}
@@ -530,10 +538,18 @@
   </header>
 
   <div class="history-toggle-row">
-    <button type="button" class="btn-history" onclick="toggleInvoiceHistory()">🧾 الفواتير</button>
+    <button type="button" class="btn-history" onclick="openInvoiceHistoryScreen()">🧾 الفواتير</button>
   </div>
 
-  <section class="card" id="invoiceHistoryCard" style="display:none;">
+  <div id="invoiceHistoryScreen" class="app-subscreen" aria-hidden="true">
+    <div class="subscreen-head">
+      <div>
+        <div class="subscreen-title">🧾 الفواتير</div>
+        <div class="subscreen-subtitle">الفواتير المحفوظة وإدارة الفواتير السابقة</div>
+      </div>
+      <button type="button" class="subscreen-back" onclick="closeAppSubscreen('invoiceHistoryScreen')">← رجوع للبرنامج</button>
+    </div>
+        <section class="card" id="invoiceHistoryCard" style="display:none;">
     <div class="toolbar-row">
       <h2 style="margin:0;">الفواتير المحفوظة</h2>
       <div class="history-actions" style="margin-top:0">
@@ -547,13 +563,22 @@
     <div id="invoiceHistoryList" class="history-list">
       <div class="history-loading">جارٍ تحميل الفواتير...</div>
     </div>
-  </section>
-
-  <div class="orders-toggle-row">
-    <button type="button" class="btn-orders" onclick="toggleOrdersPanel()">📦 الطلبات والتحضير</button>
+    </section>
   </div>
 
-  <section class="card" id="ordersCard" style="display:none;">
+  <div class="orders-toggle-row">
+    <button type="button" class="btn-orders" onclick="openOrdersScreen()">📦 الطلبات والتحضير</button>
+  </div>
+
+  <div id="ordersScreen" class="app-subscreen" aria-hidden="true">
+    <div class="subscreen-head">
+      <div>
+        <div class="subscreen-title">📦 الطلبات والتحضير</div>
+        <div class="subscreen-subtitle">متابعة الطلبات وحالة التحضير</div>
+      </div>
+      <button type="button" class="subscreen-back" onclick="closeAppSubscreen('ordersScreen')">← رجوع للبرنامج</button>
+    </div>
+        <section class="card" id="ordersCard" style="display:none;">
     <div class="toolbar-row">
       <h2 style="margin:0;">📦 الطلبات والتحضير</h2>
       <button type="button" class="btn-history" onclick="loadOrders()">↻ تحديث</button>
@@ -567,7 +592,8 @@
       </select>
     </div>
     <div id="ordersList" class="orders-list"><div class="history-loading">جارٍ تحميل الطلبات...</div></div>
-  </section>
+    </section>
+  </div>
 
   <section class="card">
     <h2>بيانات الفاتورة</h2>
@@ -1090,6 +1116,26 @@ async function saveCurrentInvoiceToSupabase(){
   updateHistoryCurrent();
   return invoice.id;
 }
+
+function openAppSubscreen(id){
+  const screen=document.getElementById(id);
+  if(!screen)return;
+  document.querySelectorAll(".app-subscreen.open").forEach(x=>{if(x!==screen)x.classList.remove("open");});
+  screen.classList.add("open");
+  screen.setAttribute("aria-hidden","false");
+  document.body.style.overflow="hidden";
+  if(id==="invoiceHistoryScreen") loadInvoiceHistory();
+  if(id==="ordersScreen") loadOrders();
+}
+function closeAppSubscreen(id){
+  const screen=document.getElementById(id);
+  if(!screen)return;
+  screen.classList.remove("open");
+  screen.setAttribute("aria-hidden","true");
+  if(!document.querySelector(".app-subscreen.open") && !document.getElementById("shippingScreen")?.classList.contains("open")) document.body.style.overflow="";
+}
+function openInvoiceHistoryScreen(){ openAppSubscreen("invoiceHistoryScreen"); }
+function openOrdersScreen(){ openAppSubscreen("ordersScreen"); }
 
 function toggleInvoiceHistory(){
   const card=document.getElementById("invoiceHistoryCard");
