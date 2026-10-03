@@ -1153,8 +1153,16 @@ function openAppSubscreen(id){
   screen.classList.add("open");
   screen.setAttribute("aria-hidden","false");
   document.body.style.overflow="hidden";
-  if(id==="invoiceHistoryScreen") loadInvoiceHistory();
-  if(id==="ordersScreen") loadOrders();
+  if(id==="invoiceHistoryScreen"){
+    const card=document.getElementById("invoiceHistoryCard");
+    if(card) card.style.display="block";
+    loadInvoiceHistory();
+  }
+  if(id==="ordersScreen"){
+    const card=document.getElementById("ordersCard");
+    if(card) card.style.display="block";
+    loadOrders();
+  }
 }
 function isPreparerMode(){
   return new URLSearchParams(window.location.search).get("mode")==="preparer";
