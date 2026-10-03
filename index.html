@@ -1213,9 +1213,17 @@ async function loadInvoiceHistory(){
   if(!list) return;
   list.innerHTML='<div class="history-loading">جارٍ تحميل الفواتير...</div>';
   try{
-    const r=await supabaseClient.from("invoices").select("id,invoice_number,client_name,total,created_at,updated_at,orders(id,status,completed_at,created_at)").order("created_at",{ascending:false}).limit(200);
+    const r=await supabaseClient.from("invoices").select("id,invoice_number,client_name,total,created_at,updated_at").order("created_at",{ascending:false}).limit(200);
     if(r.error) throw r.error;
-    window.__invoiceHistory=r.data||[];
+    const invoiceRows=r.data||[];
+    const ids=invoiceRows.map(x=>x.id).filter(Boolean);
+    let orderRows=[];
+    if(ids.length){
+      const or=await supabaseClient.from("orders").select("id,invoice_id,status,completed_at,created_at").in("invoice_id",ids).order("created_at",{ascending:false});
+      if(or.error) throw or.error;
+      orderRows=or.data||[];
+    }
+    window.__invoiceHistory=invoiceRows.map(inv=>({...inv,orders:orderRows.filter(o=>o.invoice_id===inv.id)}));
     renderInvoiceHistory(document.getElementById("invoiceHistorySearch")?.value||"");
   }catch(err){console.error("loadInvoiceHistory:",err);list.innerHTML='<div class="history-empty">تعذر تحميل الفواتير. تأكد من اتصال Supabase.</div>';}
 }
@@ -2319,10 +2327,18 @@ async function loadOrders(){
   list.innerHTML='<div class="history-loading">جارٍ تحميل الطلبات...</div>';
   try{
     const r=await supabaseClient.from("orders")
-      .select("id,order_number,client_id,client_name,client_phone,notes,status,completed_at,invoice_id,created_at,updated_at,order_items(id,product_id,code,name,quantity,notes,sort_order,prepared)")
+      .select("id,order_number,client_id,client_name,client_phone,notes,status,completed_at,invoice_id,created_at,updated_at")
       .order("created_at",{ascending:false}).limit(200);
     if(r.error) throw r.error;
-    ordersCache=r.data||[];
+    const orderRows=r.data||[];
+    const ids=orderRows.map(x=>x.id).filter(Boolean);
+    let itemRows=[];
+    if(ids.length){
+      const ir=await supabaseClient.from("order_items").select("id,order_id,product_id,code,name,quantity,notes,sort_order,prepared").in("order_id",ids).order("sort_order",{ascending:true});
+      if(ir.error) throw ir.error;
+      itemRows=ir.data||[];
+    }
+    ordersCache=orderRows.map(o=>({...o,order_items:itemRows.filter(i=>i.order_id===o.id)}));
     renderOrders();
   }catch(err){
     console.error("loadOrders:",err);
@@ -2382,7 +2398,7 @@ function renderOrders(){
           '<div><div class="prep-item-code">'+escapeHtml(i.code||"—")+'</div><div class="prep-item-name">'+escapeHtml(i.name||"—")+'</div></div>'+
           '<div class="prep-item-qty">× '+escapeHtml(String(i.quantity??1))+'</div>'+
           '<button type="button" class="prep-check '+(checked?"checked":"")+'" aria-label="'+(checked?"تم إخراج الصنف":"لم يتم إخراج الصنف")+'" onclick="toggleOrderItemPrepared(&quot;'+i.id+'&quot;,'+(!checked)+')">'+(checked?"✓":"")+'</button>'+
-          '<input class="prep-note-input" value="'+noteValue+'" placeholder="ملاحظات الصنف" onchange="updateOrderItemNote(&quot;'+i.id+'&quot;,this.value)">'+
+          '<div class="prep-note-readonly">'+(noteValue?("📝 "+noteValue):"")+'</div>'+
           '</div>';
       }
       return '<div class="order-item-line"><div><b>'+escapeHtml(i.code||"—")+'</b> — '+escapeHtml(i.name||"—")+'</div><div>× '+escapeHtml(String(i.quantity??1))+'</div><div>'+escapeHtml(i.notes||"")+'</div></div>';
