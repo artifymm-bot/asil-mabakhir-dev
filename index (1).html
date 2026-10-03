@@ -1157,13 +1157,15 @@ function enterPreparerMode(){
   document.body.classList.add("preparer-mode");
   const screen=document.getElementById("ordersScreen");
   const card=document.getElementById("ordersCard");
-  if(screen) { screen.classList.add("open"); screen.setAttribute("aria-hidden","false"); }
+  if(screen){screen.classList.add("open");screen.setAttribute("aria-hidden","false");}
   if(card) card.style.display="block";
   const label=document.getElementById("preparerModeLabel");
   if(label) label.style.display="block";
   const filter=document.getElementById("ordersFilter");
   if(filter) filter.value="preparing";
   document.body.style.overflow="hidden";
+  // وضع المحضر يفتح الشاشة مباشرة، لذلك نحمل الطلبات هنا.
+  loadOrders();
 }
 function closeAppSubscreen(id){
   const screen=document.getElementById(id);
@@ -1490,25 +1492,53 @@ function getProducts(){
 async function loadProductsFromSupabase(){
   try{
     if(!supabaseClient) return;
-    const r = await supabaseClient
+    const r=await supabaseClient
       .from("products")
-      .select("code,name,price,image_url")
+      .select("id,code,name,price,image_url")
       .order("id",{ascending:true});
     if(r.error) throw r.error;
 
     SUPABASE_PRODUCT_IMAGES = {};
-    (r.data || []).forEach(p => {
-      const code = String(p.code || "").trim();
-      if(code && p.image_url) SUPABASE_PRODUCT_IMAGES[code] = String(p.image_url);
+    const remoteRows=r.data||[];
+    const remoteByCode={};
+
+    remoteRows.forEach(p=>{
+      const code=String(p.code||"").trim();
+      if(!code) return;
+      remoteByCode[code]=p;
+      if(p.image_url) SUPABASE_PRODUCT_IMAGES[code]=String(p.image_url);
     });
 
-    console.log("Supabase product images loaded:", Object.keys(SUPABASE_PRODUCT_IMAGES).length);
+    // الاسم والسعر والصورة من Supabase هي المصدر المشترك للأصناف.
+    PRODUCTS.forEach(p=>{
+      const remote=remoteByCode[p.code];
+      if(!remote) return;
+      if(remote.name!=null && String(remote.name).trim()) p.name=String(remote.name);
+      if(remote.price!=null && remote.price!=="") p.price=Number(remote.price)||0;
+      if(remote.image_url) p.image=String(remote.image_url);
+      if(remote.id!=null) p.id=remote.id;
+    });
+
+    // إظهار أي صنف أُضيف مركزيًا في Supabase ولم يكن موجودًا في القائمة الثابتة.
+    remoteRows.forEach(p=>{
+      const code=String(p.code||"").trim();
+      if(!code || PRODUCTS.some(x=>x.code===code)) return;
+      PRODUCTS.push({
+        id:p.id,
+        code,
+        name:String(p.name||""),
+        price:Number(p.price)||0,
+        category:"أصناف أخرى",
+        image:p.image_url?String(p.image_url):""
+      });
+    });
+
+    console.log("Supabase products synced:",remoteRows.length);
   }catch(err){
-    console.error("loadProductsFromSupabase:", err);
-    SUPABASE_PRODUCT_IMAGES = {};
+    console.error("loadProductsFromSupabase:",err);
+    SUPABASE_PRODUCT_IMAGES={};
   }
 }
-
 function productStorageKey(){
   return "asil_invoice_product_catalog_v1";
 }
