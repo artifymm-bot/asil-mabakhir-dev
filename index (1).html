@@ -2368,6 +2368,14 @@ function renderOrders(){
         : '<div class="order-item-image-empty">📦</div>';
       const checked=!!i.prepared;
       const noteValue=escapeHtml(i.notes||"");
+      if(isPreparer && i.action==="note"){
+        return '<div class="order-item-line revision-note-item">'+
+          '<div style="grid-column:1/-1;font-weight:800;color:#8a5a00">🔄 تعديل على الصنف</div>'+
+          imageHtml+
+          '<div><div class="prep-item-code">'+escapeHtml(i.code||"—")+'</div><div class="prep-item-name">'+escapeHtml(i.name||"—")+'</div></div>'+
+          '<div class="prep-note-readonly">📝 '+noteValue+'</div>'+
+          '</div>';
+      }
       if(isPreparer){
         return '<div class="order-item-line '+(checked?"prepared":"")+'">'+
           imageHtml+
