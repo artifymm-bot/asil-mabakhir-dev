@@ -2074,7 +2074,6 @@ function preparePrintInvoice(){
     </style>
   </head><body>
     <div class="invoice-print-wrap">${source.outerHTML}</div>
-<div id="nativeRoleGate" class="native-role-gate" aria-hidden="true"><div class="native-role-card"><div class="native-role-badge">تطبيق الأصيل</div><h2>اختر وضع التطبيق</h2><p>سيتم حفظ الاختيار على هذا الجهاز ويمكن تغييره لاحقًا.</p><div class="native-role-buttons"><button type="button" class="native-role-btn manager" onclick="setNativeAppRole('manager')">👨‍💼 وضع المدير</button><button type="button" class="native-role-btn preparer" onclick="setNativeAppRole('preparer')">📦 وضع المحضر</button></div></div></div>
 </body></html>`);
   printWindow.document.close();
 
@@ -2115,7 +2114,8 @@ async function exportPDF(){
       });
       if(!base64) throw new Error("تعذر قراءة ملف PDF");
 
-      const fs=window.Capacitor?.Plugins?.Filesystem;
+      const cap=window.Capacitor;
+      const fs=cap?.Plugins?.Filesystem || (typeof cap?.registerPlugin==="function" ? cap.registerPlugin("Filesystem") : null);
       if(!fs?.writeFile) throw new Error("إضافة ملفات Android غير متاحة");
       const saved=await fs.writeFile({
         path:"الأصيل/"+filename,
@@ -2125,7 +2125,7 @@ async function exportPDF(){
       });
 
       /* مشاركة اختيارية من Android فقط؛ لا تفتح المتصفح. */
-      const share=window.Capacitor?.Plugins?.Share;
+      const share=cap?.Plugins?.Share || (typeof cap?.registerPlugin==="function" ? cap.registerPlugin("Share") : null);
       if(share?.share && saved?.uri){
         try{
           await share.share({
@@ -2592,5 +2592,6 @@ async function init(){
 
 document.addEventListener("DOMContentLoaded", init);
 </script>
+<div id="nativeRoleGate" class="native-role-gate" aria-hidden="true"><div class="native-role-card"><div class="native-role-badge">تطبيق الأصيل</div><h2>اختر وضع التطبيق</h2><p>سيتم حفظ الاختيار على هذا الجهاز ويمكن تغييره لاحقًا.</p><div class="native-role-buttons"><button type="button" class="native-role-btn manager" onclick="setNativeAppRole('manager')">👨‍💼 وضع المدير</button><button type="button" class="native-role-btn preparer" onclick="setNativeAppRole('preparer')">📦 وضع المحضر</button></div></div></div>
 </body>
 </html>
