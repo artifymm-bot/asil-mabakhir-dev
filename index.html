@@ -553,6 +553,14 @@
     .order-item-image,.order-item-image-empty{width:50px;height:50px}
   }
 
+
+  /* ===== Android APK: اختيار وضع التطبيق ===== */
+  .native-role-gate{position:fixed;inset:0;z-index:20000;display:none;align-items:center;justify-content:center;padding:18px;background:linear-gradient(135deg,#1c2b4a,#233658)}
+  .native-role-gate.open{display:flex}
+  .native-role-card{width:min(460px,100%);background:#fff;border-radius:20px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.28);text-align:center}
+  .native-role-card h2{margin:0;color:#1c2b4a;font-size:24px}.native-role-card p{margin:8px 0 20px;color:#79706e;font-size:13px}
+  .native-role-buttons{display:grid;grid-template-columns:1fr 1fr;gap:12px}.native-role-btn{border:0;border-radius:13px;padding:15px 10px;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer}.native-role-btn.manager{background:#c9822f;color:#fff}.native-role-btn.preparer{background:#1c2b4a;color:#fff}.native-role-badge{display:inline-block;background:#f3efe4;color:#9c5a28;border-radius:999px;padding:5px 10px;font-size:11px;font-weight:800;margin-bottom:10px}
+  @media(max-width:480px){.native-role-buttons{grid-template-columns:1fr}.native-role-card{padding:20px}}
 </style>
 </head>
 <body>
@@ -2066,6 +2074,7 @@ function preparePrintInvoice(){
     </style>
   </head><body>
     <div class="invoice-print-wrap">${source.outerHTML}</div>
+<div id="nativeRoleGate" class="native-role-gate" aria-hidden="true"><div class="native-role-card"><div class="native-role-badge">تطبيق الأصيل</div><h2>اختر وضع التطبيق</h2><p>سيتم حفظ الاختيار على هذا الجهاز ويمكن تغييره لاحقًا.</p><div class="native-role-buttons"><button type="button" class="native-role-btn manager" onclick="setNativeAppRole('manager')">👨‍💼 وضع المدير</button><button type="button" class="native-role-btn preparer" onclick="setNativeAppRole('preparer')">📦 وضع المحضر</button></div></div></div>
 </body></html>`);
   printWindow.document.close();
 
@@ -2457,6 +2466,13 @@ function setupOrdersRealtime(){
     .subscribe(status=>console.log("orders realtime:",status));
 }
 
+
+/* ===== Android APK: وضع التطبيق ===== */
+function isNativeAndroidApp(){return !!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());}
+function getNativeAppRole(){try{return localStorage.getItem("asil_native_app_role")||"";}catch(e){return "";}}
+function setNativeAppRole(role){if(role!=="manager"&&role!=="preparer")return;try{localStorage.setItem("asil_native_app_role",role);}catch(e){}const gate=document.getElementById("nativeRoleGate");if(gate){gate.classList.remove("open");gate.setAttribute("aria-hidden","true");}document.body.classList.toggle("preparer-mode",role==="preparer");if(role==="preparer")enterPreparerMode();}
+function showNativeRoleGateIfNeeded(){if(!isNativeAndroidApp())return;const role=getNativeAppRole();if(role==="manager")return;if(role==="preparer"){document.body.classList.add("preparer-mode");return;}const gate=document.getElementById("nativeRoleGate");if(gate){gate.classList.add("open");gate.setAttribute("aria-hidden","false");}}
+
 /* =========================================================
    بدء التشغيل
    ========================================================= */
@@ -2504,6 +2520,7 @@ async function init(){
   setupOrdersRealtime();
 
   if(isPreparerMode()) enterPreparerMode();
+  showNativeRoleGateIfNeeded();
 }
 
 document.addEventListener("DOMContentLoaded", init);
