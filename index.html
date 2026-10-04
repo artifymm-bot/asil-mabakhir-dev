@@ -992,7 +992,7 @@ let discountPercent = 0;
    ========================================================= */
 const SUPABASE_URL = "https://shojdoigxhoybwtpkvam.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_M8ayaSDZOZ3MIrbHqyD-0Q_mY6kHSPP";
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+const supabaseClient = (window.supabase && typeof window.supabase.createClient === "function") ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) : null;
 let currentInvoiceId = null;
 let invoiceDisplayDate = "";
 
@@ -2461,31 +2461,49 @@ function setupOrdersRealtime(){
    بدء التشغيل
    ========================================================= */
 async function init(){
-  restoreShippingDataFromLocal();
+  // نبدأ الواجهة المحلية أولًا حتى لا تختفي الأصناف أو رقم الفاتورة
+  // إذا تأخر Supabase أو تعذر تحميل مكتبة خارجية.
+  try{ restoreShippingDataFromLocal(); }catch(e){ console.warn(e); }
+
   const shippingFields=["shippingAddress","shippingRecipient","shippingPhone","shippingCartons","shippingRequired","shippingCost"];
   shippingFields.forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.addEventListener("input",saveShippingDataToLocal);
   });
-  loadProductCatalog();
-  await loadProductsFromSupabase();
-  generateInvoiceNumber();
-  document.getElementById("invoiceNoDisplay").textContent = invoiceNumber;
-  document.getElementById("dateDisplay").textContent = invoiceDisplayDate ? formatDateFromValue(invoiceDisplayDate) : formatDate();
 
-  document.getElementById("clientName").addEventListener("input", () => { selectedClientId=null; renderInvoice(); });
-  document.getElementById("clientPhone").addEventListener("input", () => { selectedClientId=null; renderInvoice(); });
-  document.getElementById("contactsSearch").addEventListener("input", e => renderContacts(e.target.value));
-  loadClients();
-  document.getElementById("notesInput").addEventListener("input", renderInvoice);
-  document.getElementById("invoiceHistorySearch").addEventListener("input", e => renderInvoiceHistory(e.target.value));
+  loadProductCatalog();
+
+  generateInvoiceNumber();
+  const invoiceNoEl=document.getElementById("invoiceNoDisplay");
+  const dateEl=document.getElementById("dateDisplay");
+  if(invoiceNoEl) invoiceNoEl.textContent=invoiceNumber;
+  if(dateEl) dateEl.textContent=invoiceDisplayDate ? formatDateFromValue(invoiceDisplayDate) : formatDate();
+
+  // عرض الكتالوج ورقم الفاتورة فورًا من البيانات المحلية.
+  renderItems();
+  renderInvoice();
+
+  const clientNameEl=document.getElementById("clientName");
+  const clientPhoneEl=document.getElementById("clientPhone");
+  const contactsSearchEl=document.getElementById("contactsSearch");
+  const notesEl=document.getElementById("notesInput");
+  const historySearchEl=document.getElementById("invoiceHistorySearch");
+  if(clientNameEl) clientNameEl.addEventListener("input",()=>{selectedClientId=null;renderInvoice();});
+  if(clientPhoneEl) clientPhoneEl.addEventListener("input",()=>{selectedClientId=null;renderInvoice();});
+  if(contactsSearchEl) contactsSearchEl.addEventListener("input",e=>renderContacts(e.target.value));
+  if(notesEl) notesEl.addEventListener("input",renderInvoice);
+  if(historySearchEl) historySearchEl.addEventListener("input",e=>renderInvoiceHistory(e.target.value));
+
+  // المزامنة اختيارية ولا تمنع تشغيل التطبيق.
+  await loadProductsFromSupabase();
+  renderItems();
+  renderInvoice();
+
+  try{ await loadClients(); }catch(e){ console.warn("loadClients:",e); }
   updateHistoryCurrent();
   setupOrdersRealtime();
 
   if(isPreparerMode()) enterPreparerMode();
-
-  renderItems();
-  renderInvoice();
 }
 
 document.addEventListener("DOMContentLoaded", init);
