@@ -8,8 +8,8 @@
   "dependencies": {
     "@capacitor/core": "7.4.3",
     "@capacitor/android": "7.4.3",
-    "@capacitor/filesystem": "7.4.3",
-    "@capacitor/share": "7.4.3"
+    "@capacitor/filesystem": "7.1.8",
+    "@capacitor/share": "7.0.4"
   },
   "devDependencies": {
     "@capacitor/cli": "7.4.3"
