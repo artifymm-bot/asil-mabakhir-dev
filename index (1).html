@@ -2320,7 +2320,7 @@ async function createOrderFromCurrentInvoice(){
       const q=await supabaseClient.from("orders").insert({order_number:inv.data.invoice_number,invoice_id:id,client_id:inv.data.client_id||null,client_name:inv.data.client_name||"",client_phone:inv.data.client_phone||"",notes:inv.data.notes||"",status:"preparing"}).select().single();if(q.error)throw q.error;orderId=q.data.id;
     }
     const dr=await supabaseClient.from("order_items").delete().eq("order_id",orderId);if(dr.error)throw dr.error;
-    const rows=items.filter(x=>x.code).map((x,i)=>{const p=getProducts().find(y=>y.code===x.code);return {order_id:orderId,product_id:p?.id||null,code:x.code||"",name:x.name||p?.name||"",quantity:Number(x.qty)||1,notes:x.notes||"",sort_order:i,prepared:false,action:"prepare"});});
+    const rows=items.filter(x=>x.code).map((x,i)=>{const p=getProducts().find(y=>y.code===x.code);return {order_id:orderId,product_id:p?.id||null,code:x.code||"",name:x.name||p?.name||"",quantity:Number(x.qty)||1,notes:x.notes||"",sort_order:i,prepared:false,action:"prepare"};});
     const ir=await supabaseClient.from("order_items").insert(rows);if(ir.error)throw ir.error;
     await loadInvoiceHistory();document.getElementById("ordersCard").style.display="block";await loadOrders();
     alert("تم إرسال الفاتورة رقم "+inv.data.invoice_number+" للتحضير.");
