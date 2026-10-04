@@ -2096,15 +2096,27 @@ async function exportPDF(){
       if(!source) throw new Error("لم يتم العثور على معاينة الفاتورة");
 
       const filename=getInvoiceFileBaseName()+".pdf";
+      // تسريع التصدير على Android: دقة 1.2 بدل 2 وجودة JPEG أقل.
+      // هذا يقلل حجم الـCanvas ووقت تحويله إلى PDF بشكل كبير مع الحفاظ
+      // على وضوح الفاتورة على الهاتف وواتساب.
       const opt={
-        margin:[8,8,8,8],
+        margin:[6,6,6,6],
         filename,
-        image:{type:"jpeg",quality:0.98},
-        html2canvas:{scale:2,useCORS:true,backgroundColor:"#ffffff",scrollX:0,scrollY:0},
+        image:{type:"jpeg",quality:0.82},
+        html2canvas:{
+          scale:1.2,
+          useCORS:true,
+          backgroundColor:"#ffffff",
+          scrollX:0,
+          scrollY:0,
+          logging:false
+        },
         jsPDF:{unit:"mm",format:"a4",orientation:"landscape"},
-        pagebreak:{mode:["css","legacy"]}
+        pagebreak:{mode:["css"]}
       };
 
+      // نسمح للواجهة بتحديث حالة زر التصدير قبل بدء المعالجة الثقيلة.
+      await new Promise(resolve=>setTimeout(resolve,30));
       const pdfBlob=await html2pdf().set(opt).from(source).outputPdf("blob");
       const base64=await new Promise((resolve,reject)=>{
         const reader=new FileReader();
