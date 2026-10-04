@@ -1,7 +1,7 @@
 {
   "appId": "com.artify.asilmabakhir",
   "appName": "الأصيل",
-  "webDir": ".",
+  "webDir": "www",
   "server": {
     "androidScheme": "https"
   }
