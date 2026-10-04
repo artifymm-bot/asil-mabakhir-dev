@@ -2087,6 +2087,70 @@ async function exportPDF(){
     return;
   }
 
+  /* في تطبيق Android: إنشاء PDF داخل التطبيق وحفظه في مجلد Documents
+     بدون فتح Chrome أو نافذة متصفح خارجية. */
+  if(isNativeAndroidApp()){
+    try{
+      if(typeof html2pdf!=="function") throw new Error("مكتبة PDF غير متاحة");
+      renderInvoice();
+      const source=document.getElementById("invoicePreview");
+      if(!source) throw new Error("لم يتم العثور على معاينة الفاتورة");
+
+      const filename=getInvoiceFileBaseName()+".pdf";
+      const opt={
+        margin:[8,8,8,8],
+        filename,
+        image:{type:"jpeg",quality:0.98},
+        html2canvas:{scale:2,useCORS:true,backgroundColor:"#ffffff",scrollX:0,scrollY:0},
+        jsPDF:{unit:"mm",format:"a4",orientation:"landscape"},
+        pagebreak:{mode:["css","legacy"]}
+      };
+
+      const pdfBlob=await html2pdf().set(opt).from(source).outputPdf("blob");
+      const base64=await new Promise((resolve,reject)=>{
+        const reader=new FileReader();
+        reader.onload=()=>resolve(String(reader.result||"").split(",")[1]||"");
+        reader.onerror=reject;
+        reader.readAsDataURL(pdfBlob);
+      });
+      if(!base64) throw new Error("تعذر قراءة ملف PDF");
+
+      const fs=window.Capacitor?.Plugins?.Filesystem;
+      if(!fs?.writeFile) throw new Error("إضافة ملفات Android غير متاحة");
+      const saved=await fs.writeFile({
+        path:"الأصيل/"+filename,
+        data:base64,
+        directory:"DOCUMENTS",
+        recursive:true
+      });
+
+      /* مشاركة اختيارية من Android فقط؛ لا تفتح المتصفح. */
+      const share=window.Capacitor?.Plugins?.Share;
+      if(share?.share && saved?.uri){
+        try{
+          await share.share({
+            title:"فاتورة الأصيل",
+            text:"فاتورة رقم "+invoiceNumber,
+            files:[saved.uri],
+            dialogTitle:"مشاركة الفاتورة"
+          });
+        }catch(shareErr){
+          if(shareErr?.message && !/cancel|abort/i.test(String(shareErr.message))){
+            console.warn("Android share skipped:",shareErr);
+          }
+        }
+      }
+
+      alert("تم تصدير الفاتورة PDF وحفظها داخل مجلد «الأصيل» في ملفات الهاتف.");
+      return;
+    }catch(err){
+      console.error("native exportPDF error:",err);
+      alert("تعذر إنشاء PDF داخل التطبيق. تأكد من وجود اتصال بالإنترنت لأول مرة ثم حاول مرة أخرى.");
+      return;
+    }
+  }
+
+  /* نسخة المتصفح تبقى كما هي. */
   try{
     const printWindow = preparePrintInvoice();
 
@@ -2468,7 +2532,7 @@ function setupOrdersRealtime(){
 
 
 /* ===== Android APK: وضع التطبيق ===== */
-function isNativeAndroidApp(){return !!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());}
+function isNativeAndroidApp(){try{const cap=window.Capacitor;return !!(cap&&((typeof cap.isNativePlatform==="function"&&cap.isNativePlatform())||(typeof cap.getPlatform==="function"&&cap.getPlatform()==="android")||cap.platform==="android"||cap?.Plugins?.Filesystem));}catch(e){return false;}}
 function getNativeAppRole(){try{return localStorage.getItem("asil_native_app_role")||"";}catch(e){return "";}}
 function setNativeAppRole(role){if(role!=="manager"&&role!=="preparer")return;try{localStorage.setItem("asil_native_app_role",role);}catch(e){}const gate=document.getElementById("nativeRoleGate");if(gate){gate.classList.remove("open");gate.setAttribute("aria-hidden","true");}document.body.classList.toggle("preparer-mode",role==="preparer");if(role==="preparer")enterPreparerMode();}
 function showNativeRoleGateIfNeeded(){if(!isNativeAndroidApp())return;const role=getNativeAppRole();if(role==="manager")return;if(role==="preparer"){document.body.classList.add("preparer-mode");return;}const gate=document.getElementById("nativeRoleGate");if(gate){gate.classList.add("open");gate.setAttribute("aria-hidden","false");}}
@@ -2477,6 +2541,9 @@ function showNativeRoleGateIfNeeded(){if(!isNativeAndroidApp())return;const role
    بدء التشغيل
    ========================================================= */
 async function init(){
+  // في APK نعرض اختيار وضع التطبيق فورًا قبل أي مزامنة أو انتظار للشبكة.
+  showNativeRoleGateIfNeeded();
+
   // نبدأ الواجهة المحلية أولًا حتى لا تختفي الأصناف أو رقم الفاتورة
   // إذا تأخر Supabase أو تعذر تحميل مكتبة خارجية.
   try{ restoreShippingDataFromLocal(); }catch(e){ console.warn(e); }
