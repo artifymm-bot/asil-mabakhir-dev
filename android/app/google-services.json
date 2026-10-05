@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "980824476432",
+    "project_id": "asilmabakhirdov",
+    "storage_bucket": "asilmabakhirdov.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:980824476432:android:b6e952e40b8449e51b3395",
+        "android_client_info": {
+          "package_name": "com.artify.asilmabakhir"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJROmcGUHHh4oaU35mVG_rmwvTq0PxVhs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
