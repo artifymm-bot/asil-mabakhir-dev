@@ -2407,7 +2407,7 @@ async function createOrderFromCurrentInvoice(){
     const dr=await supabaseClient.from("order_items").delete().eq("order_id",orderId);if(dr.error)throw dr.error;
     const rows=items.filter(x=>x.code).map((x,i)=>{const p=getProducts().find(y=>y.code===x.code);return {order_id:orderId,product_id:p?.id||null,code:x.code||"",name:x.name||p?.name||"",quantity:Number(x.qty)||1,notes:x.notes||"",sort_order:i,prepared:false,action:"prepare"};});
     const ir=await supabaseClient.from("order_items").insert(rows);if(ir.error)throw ir.error;
-    await loadInvoiceHistory();document.getElementById("ordersCard").style.display="block";await loadOrders();
+    await loadInvoiceHistory();document.getElementById("ordersCard").style.display="block";await loadOrders();await sendOrderPushNotification(orderId,"new",inv.data.invoice_number);
     alert("تم إرسال الفاتورة رقم "+inv.data.invoice_number+" للتحضير.");
   }catch(err){console.error("createOrderFromCurrentInvoice:",err);alert("تعذر إرسال الفاتورة للتحضير.");}
 }
@@ -2510,7 +2510,7 @@ function renderOrders(){
     }else{
       actions='<button type="button" class="order-action-delete" onclick="deleteOrder(&quot;'+o.id+'&quot;)">حذف</button>';
     }
-    return '<div class="order-row"><div class="order-row-main"><div><div class="order-number">فاتورة '+escapeHtml(o.order_number)+'</div><div class="order-client">العميل: '+escapeHtml(o.client_name||"بدون اسم")+'</div><div class="order-meta">'+(isPreparer?"":"رقم العميل: "+escapeHtml(o.client_phone||"")+" — ")+"الحالة: "+escapeHtml(status)+'</div></div><span class="order-status '+orderStatusClass(o.status)+'">'+escapeHtml(status)+'</span></div><div class="order-items-preview">'+itemsHtml+'</div><div class="order-actions">'+actions+'</div></div>';
+    return '<div class="order-row" data-order-id="'+escapeHtml(o.id)+'"><div class="order-row-main"><div><div class="order-number">فاتورة '+escapeHtml(o.order_number)+'</div><div class="order-client">العميل: '+escapeHtml(o.client_name||"بدون اسم")+'</div><div class="order-meta">'+(isPreparer?"":"رقم العميل: "+escapeHtml(o.client_phone||"")+" — ")+"الحالة: "+escapeHtml(status)+'</div></div><span class="order-status '+orderStatusClass(o.status)+'">'+escapeHtml(status)+'</span></div><div class="order-items-preview">'+itemsHtml+'</div><div class="order-actions">'+actions+'</div></div>';
   }).join("");
 }
 async function setOrderStatus(id,status){
@@ -2522,7 +2522,7 @@ async function setOrderStatus(id,status){
     }
     const q=await supabaseClient.from("orders").update({status:status,completed_at:status==="completed"?new Date().toISOString():null}).eq("id",id);
     if(q.error)throw q.error;
-    if(status==="completed"){const order=ordersCache.find(o=>o.id===id);if(order?.revision_id){const rq=await supabaseClient.from("invoice_revisions").update({status:"completed"}).eq("id",order.revision_id);if(rq.error)throw rq.error;}}
+    if(status==="completed"){const order=ordersCache.find(o=>o.id===id);if(order)await sendOrderPushNotification(id,"completed",order.order_number);if(order?.revision_id){const rq=await supabaseClient.from("invoice_revisions").update({status:"completed"}).eq("id",order.revision_id);if(rq.error)throw rq.error;}}
     await loadOrders();
     if(getComputedStyle(document.getElementById("invoiceHistoryCard")).display!=="none")await loadInvoiceHistory();
   }catch(err){console.error("setOrderStatus:",err);alert("تعذر تحديث حالة التحضير.");}
@@ -2543,11 +2543,62 @@ function setupOrdersRealtime(){
 }
 
 
+
+/* ===== Android Push Notifications (FCM) ===== */
+async function registerAndroidPushNotifications(role){
+  if(!isNativeAndroidApp() || !role) return;
+  try{
+    const Push=window.Capacitor?.Plugins?.PushNotifications;
+    if(!Push?.requestPermissions || !Push?.register) return;
+    if(!window.__asilPushListenersReady){
+      window.__asilPushListenersReady=true;
+      await Push.addListener("registration",async token=>{
+        const pushToken=String(token?.value||"").trim(); if(!pushToken)return;
+        try{
+          await supabaseClient.from("push_devices").upsert({
+            token:pushToken,role:getNativeAppRole(),device_name:navigator.userAgent.slice(0,180),
+            platform:"android",active:true
+          },{onConflict:"token"});
+          localStorage.setItem("asil_fcm_token",pushToken);
+        }catch(err){console.warn("save FCM token failed:",err);}
+      });
+      await Push.addListener("registrationError",err=>console.warn("FCM registration error:",err));
+      await Push.addListener("pushNotificationActionPerformed",async action=>{
+        const data=action?.notification?.data||{};
+        const orderId=String(data.order_id||data.orderId||"");
+        if(orderId)localStorage.setItem("asil_pending_notification_order",orderId);
+        try{
+          const card=document.getElementById("ordersCard"); if(card)card.style.display="block";
+          await loadOrders();
+          if(orderId){
+            const el=document.querySelector('[data-order-id="'+CSS.escape(orderId)+'"]');
+            if(el)el.scrollIntoView({behavior:"smooth",block:"center"});
+          }
+        }catch(err){console.warn("notification open handling:",err);}
+      });
+    }
+    const perm=await Push.requestPermissions();
+    if(perm.receive==="granted") await Push.register();
+    else console.warn("Android notifications permission not granted.");
+  }catch(err){console.warn("registerAndroidPushNotifications:",err);}
+}
+
+async function sendOrderPushNotification(orderId,eventType,orderNumber){
+  if(!isNativeAndroidApp()||!orderId||!eventType)return;
+  try{
+    const {data,error}=await supabaseClient.functions.invoke("send-order-push",{
+      body:{order_id:orderId,event:eventType,order_number:String(orderNumber||"")}
+    });
+    if(error)throw error;
+    console.log("Push request:",data);
+  }catch(err){console.warn("sendOrderPushNotification:",err);}
+}
+
 /* ===== Android APK: وضع التطبيق ===== */
 function isNativeAndroidApp(){try{const cap=window.Capacitor;return !!(cap&&((typeof cap.isNativePlatform==="function"&&cap.isNativePlatform())||(typeof cap.getPlatform==="function"&&cap.getPlatform()==="android")||cap.platform==="android"||cap?.Plugins?.Filesystem));}catch(e){return false;}}
 function getNativeAppRole(){try{return localStorage.getItem("asil_native_app_role")||"";}catch(e){return "";}}
-function setNativeAppRole(role){if(role!=="manager"&&role!=="preparer")return;try{localStorage.setItem("asil_native_app_role",role);}catch(e){}const gate=document.getElementById("nativeRoleGate");if(gate){gate.classList.remove("open");gate.setAttribute("aria-hidden","true");}document.body.classList.toggle("preparer-mode",role==="preparer");if(role==="preparer")enterPreparerMode();}
-function showNativeRoleGateIfNeeded(){if(!isNativeAndroidApp())return;const role=getNativeAppRole();if(role==="manager")return;if(role==="preparer"){document.body.classList.add("preparer-mode");return;}const gate=document.getElementById("nativeRoleGate");if(gate){gate.classList.add("open");gate.setAttribute("aria-hidden","false");}}
+function setNativeAppRole(role){if(role!=="manager"&&role!=="preparer")return;try{localStorage.setItem("asil_native_app_role",role);}catch(e){}const gate=document.getElementById("nativeRoleGate");if(gate){gate.classList.remove("open");gate.setAttribute("aria-hidden","true");}document.body.classList.toggle("preparer-mode",role==="preparer");if(role==="preparer")enterPreparerMode();registerAndroidPushNotifications(role);}
+function showNativeRoleGateIfNeeded(){if(!isNativeAndroidApp())return;const role=getNativeAppRole();if(role==="manager"){registerAndroidPushNotifications(role);return;}if(role==="preparer"){document.body.classList.add("preparer-mode");registerAndroidPushNotifications(role);return;}const gate=document.getElementById("nativeRoleGate");if(gate){gate.classList.add("open");gate.setAttribute("aria-hidden","false");}}
 
 /* =========================================================
    بدء التشغيل
@@ -2599,6 +2650,8 @@ async function init(){
   setupOrdersRealtime();
 
   if(isPreparerMode()) enterPreparerMode();
+  const savedNativeRole=getNativeAppRole();
+  if(savedNativeRole) await registerAndroidPushNotifications(savedNativeRole);
   showNativeRoleGateIfNeeded();
 }
 
