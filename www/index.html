@@ -2550,6 +2550,7 @@ async function registerAndroidPushNotifications(role){
   try{
     const Push=window.Capacitor?.Plugins?.PushNotifications;
     if(!Push?.requestPermissions || !Push?.register) return;
+    try{if(Push.createChannel)await Push.createChannel({id:"asil_orders",name:"طلبات الأصيل",description:"إشعارات الطلبات والتحضير",importance:5,sound:"default",vibration:true,lights:true});}catch(channelErr){console.warn("push channel:",channelErr);}
     if(!window.__asilPushListenersReady){
       window.__asilPushListenersReady=true;
       await Push.addListener("registration",async token=>{
