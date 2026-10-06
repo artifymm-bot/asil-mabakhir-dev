@@ -37,6 +37,10 @@ jobs:
 
       # The repository only keeps the Firebase config under android/.
       # The rest of the Capacitor Android project is generated in CI.
+      - name: Preserve Firebase configuration
+        run: |
+          git show HEAD:android/app/google-services.json > /tmp/google-services.json
+
       - name: Prepare Android platform
         run: |
           rm -rf android
@@ -44,6 +48,7 @@ jobs:
 
       - name: Configure Firebase for Android
         run: |
+          cp /tmp/google-services.json android/app/google-services.json
           test -f android/app/google-services.json
           python3 - <<'PY'
           from pathlib import Path
