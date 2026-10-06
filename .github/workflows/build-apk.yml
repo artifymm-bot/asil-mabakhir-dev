@@ -6,9 +6,11 @@ on:
     paths:
       - "index.html"
       - "index (1).html"
+      - "www/**"
       - "package.json"
+      - "package-lock.json"
       - "capacitor.config.json"
-      - "google-services.json"
+      - "android/**"
       - ".github/workflows/build-apk.yml"
 
 jobs:
@@ -22,28 +24,35 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
-      - name: Add Android platform
-        run: npx cap add android
+      # The repository only keeps the Firebase config under android/.
+      # The rest of the Capacitor Android project is generated in CI.
+      - name: Prepare Android platform
+        run: |
+          rm -rf android
+          npx cap add android
 
       - name: Configure Firebase for Android
         run: |
-          if [ -f google-services.json ]; then
-            cp google-services.json android/app/google-services.json
-            python3 - <<'PY'
-            from pathlib import Path
-            p=Path("android/build.gradle")
-            s=p.read_text()
-            s=s.replace("com.google.gms:google-services:4.4.4", "com.google.gms:google-services:4.5.0")
-            p.write_text(s)
-            print("Firebase Android configuration copied and Google Services plugin pinned to 4.5.0.")
-            PY
-          else
-            echo "::warning::google-services.json is not present; APK will build without Firebase Android configuration."
-          fi
+          test -f android/app/google-services.json
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("android/build.gradle")
+          s=p.read_text()
+          s=s.replace("com.google.gms:google-services:4.4.4", "com.google.gms:google-services:4.5.0")
+          p.write_text(s)
+          print("Firebase Android configuration is ready.")
+          PY
 
       - name: Verify source commit
         run: |
@@ -66,7 +75,7 @@ jobs:
 
       - name: Verify APK output
         run: |
-          test -f android/app/build/outputs/apk/debug/app-debug.apk
+          test -s android/app/build/outputs/apk/debug/app-debug.apk
           sha256sum android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload APK
