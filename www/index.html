@@ -639,16 +639,6 @@
       <div class="field">
         <label>اسم العميل</label>
         <input type="text" id="clientName" placeholder="اسم العميل">
-        <div class="client-contact-tools">
-          <button type="button" class="btn-contact" onclick="toggleContactsPanel()">📒 جهات الاتصال</button>
-        </div>
-        <div id="contactsPanel" class="contacts-panel">
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:9px;">
-            <button type="button" class="btn-contact-add" onclick="openContactModal()">＋ إضافة جهة اتصال</button>
-          </div>
-          <input id="contactsSearch" class="contacts-search" type="search" placeholder="ابحث بالاسم أو رقم العميل">
-          <div id="contactsList" class="contacts-list"></div>
-        </div>
       </div>
       <div class="field">
         <label>رقم العميل</label>
@@ -705,7 +695,6 @@
       <button class="btn-orders" onclick="createOrderFromCurrentInvoice()">📦 إرسال للتحضير</button>
       <button class="btn-clear" onclick="clearInvoice()">مسح الكل</button>
       <button class="btn-pdf" onclick="exportPDF()">📄 تصدير PDF</button>
-      <button class="btn-whatsapp" onclick="shareWhatsApp()">🟢 إرسال إلى واتساب</button>
     </div>
   </section>
 
