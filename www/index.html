@@ -2057,9 +2057,12 @@ function preparePrintInvoice(){
         background:#fff!important;
       }
       .inv-company{font-size:19px}
-      table.inv-table{page-break-inside:auto}
-      table.inv-table tr{page-break-inside:avoid;page-break-after:auto}
-      #pTotalsBlock,#pAmountWords,#pNotesBlock{page-break-inside:avoid}
+      table.inv-table{width:100%;table-layout:fixed;border-collapse:collapse;page-break-inside:auto;break-inside:auto}
+      table.inv-table thead{display:table-header-group}
+      table.inv-table tfoot{display:table-footer-group}
+      table.inv-table tr{page-break-inside:avoid!important;break-inside:avoid!important;page-break-after:auto}
+      table.inv-table th,table.inv-table td{overflow-wrap:anywhere;word-break:normal}
+      #pTotalsBlock,#pAmountWords,#pNotesBlock,.totals-block{page-break-inside:avoid;break-inside:avoid}
     </style>
   </head><body>
     <div class="invoice-print-wrap">${source.outerHTML}</div>
@@ -2089,19 +2092,20 @@ async function exportPDF(){
       // هذا يقلل حجم الـCanvas ووقت تحويله إلى PDF بشكل كبير مع الحفاظ
       // على وضوح الفاتورة على الهاتف وواتساب.
       const opt={
-        margin:[6,6,6,6],
+        margin:[7,7,7,7],
         filename,
-        image:{type:"jpeg",quality:0.82},
+        image:{type:"jpeg",quality:0.88},
         html2canvas:{
-          scale:1.2,
+          scale:1.35,
           useCORS:true,
           backgroundColor:"#ffffff",
           scrollX:0,
           scrollY:0,
+          windowWidth:source.scrollWidth,
           logging:false
         },
         jsPDF:{unit:"mm",format:"a4",orientation:"landscape"},
-        pagebreak:{mode:["css"]}
+        pagebreak:{mode:["avoid-all","css","legacy"],avoid:["tr","thead",".totals-block","#pTotalsBlock","#pAmountWords","#pNotesBlock"]}
       };
 
       // نسمح للواجهة بتحديث حالة زر التصدير قبل بدء المعالجة الثقيلة.
