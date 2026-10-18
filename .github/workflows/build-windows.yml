@@ -1,0 +1,35 @@
+name: Build Windows Desktop App
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "desktop/main.cjs"
+      - ".github/workflows/build-windows.yml"
+      - "package.json"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout development repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install desktop packaging tools
+        run: npm install --no-save electron electron-builder
+
+      - name: Package Windows portable executable
+        run: npx electron-builder --win portable --x64 --config.extraMetadata.main=desktop/main.cjs --config.productName="Al Aseel" --config.directories.output=dist-windows
+
+      - name: Upload Windows executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: asil-mabakhir-windows
+          path: dist-windows/*.exe
+          if-no-files-found: error
+          retention-days: 30
