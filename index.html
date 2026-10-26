@@ -2422,6 +2422,34 @@ async function loadOrders(){
       if(ir.error) throw ir.error;
       itemRows=ir.data||[];
     }
+
+    // Recovery: older preparation orders may exist without copied order_items.
+    // Rebuild their item rows from the source invoice so the preparer sees the products.
+    const missingOrders=orderRows.filter(o=>o.status==="preparing" && o.invoice_id && !itemRows.some(i=>i.order_id===o.id));
+    if(missingOrders.length){
+      const invoiceIds=[...new Set(missingOrders.map(o=>o.invoice_id))];
+      const source=await supabaseClient.from("invoice_items")
+        .select("invoice_id,product_id,code,name,quantity,notes,sort_order")
+        .in("invoice_id",invoiceIds).order("sort_order",{ascending:true});
+      if(source.error) throw source.error;
+      const sourceRows=source.data||[];
+      const recovered=[];
+      for(const order of missingOrders){
+        const rows=sourceRows.filter(x=>x.invoice_id===order.invoice_id && (x.code || x.name)).map((x,i)=>({
+          order_id:order.id, product_id:x.product_id||null, code:x.code||"", name:x.name||"",
+          quantity:Number(x.quantity)||1, notes:x.notes||"", sort_order:Number.isFinite(Number(x.sort_order))?Number(x.sort_order):i,
+          prepared:false, action:"prepare"
+        }));
+        if(rows.length) recovered.push(...rows);
+      }
+      if(recovered.length){
+        const saved=await supabaseClient.from("order_items").insert(recovered);
+        if(saved.error) throw saved.error;
+        const refreshed=await supabaseClient.from("order_items").select("id,order_id,product_id,code,name,quantity,notes,sort_order,prepared,action").in("order_id",ids).order("sort_order",{ascending:true});
+        if(refreshed.error) throw refreshed.error;
+        itemRows=refreshed.data||[];
+      }
+    }
     ordersCache=orderRows.map(o=>({...o,order_items:itemRows.filter(i=>i.order_id===o.id)}));
     renderOrders();
   }catch(err){
